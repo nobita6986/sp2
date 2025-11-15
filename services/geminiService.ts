@@ -82,7 +82,11 @@ export const analyzeVideoContent = async (videoData: VideoData, thumbnailBase64:
       throw new Error("OpenAI provider is not yet implemented.");
   }
   
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  if (!config.geminiKey) {
+    throw new Error("An API Key must be set when running in a browser");
+  }
+
+  const ai = new GoogleGenAI({ apiKey: config.geminiKey });
 
   const prompt = `
     Act as an expert YouTube SEO analyst. Your name is ClearCue.

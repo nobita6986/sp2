@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import type { AnalysisResult, VideoData, ApiConfig, Session, SeoSuggestion, ApiKeyService, ApiKeyEntry, GeminiModel } from './types';
-import { analyzeVideoContent, getSeoSuggestions } from './services/geminiService';
+import { analyzeVideoContent, getSeoSuggestions, editThumbnailImage } from './services/geminiService';
 import { fetchVideoMetadata } from './services/youtubeService';
 import { fetchTranscript } from './services/transcriptService';
 import { extractVideoId } from './utils/youtubeUtils';
@@ -332,6 +332,19 @@ const App: React.FC = () => {
       }
   };
 
+  const handleEditThumbnail = useCallback(async (prompt: string): Promise<string> => {
+      if (!fullResThumbnailUrl) {
+          throw new Error("Vui lòng tải lên một ảnh thumbnail trước khi chỉnh sửa.");
+      }
+      const pureBase64 = dataUrlToPureBase64(fullResThumbnailUrl);
+      
+      const newImageUrl = await withApiFallback('gemini', (apiKey) => {
+          // The image editing model is fixed, so we don't pass `geminiModel`
+          return editThumbnailImage(pureBase64, prompt, apiKey);
+      });
+      return newImageUrl;
+  }, [fullResThumbnailUrl, withApiFallback]);
+
  const handleDownloadSuggestions = () => {
     if (!seoSuggestions) return;
 
@@ -358,7 +371,7 @@ const App: React.FC = () => {
       setAnalysisResult(session.analysisResult);
       setThumbnailPreviewUrl(session.thumbnailPreview);
       // We don't save full-res, so it will be null, which is fine. Re-fetch if analysis needed.
-      setFullResThumbnailUrl(null); 
+      setFullResThumbnailUrl(session.thumbnailPreview); // Use preview for editing if full-res is not available
       setSeoSuggestions(session.seoSuggestions || null);
       setCurrentSession(session);
       setError(null);
@@ -440,6 +453,7 @@ const App: React.FC = () => {
               onClose={() => setIsSuggestionsModalOpen(false)}
               suggestions={seoSuggestions}
               onDownload={handleDownloadSuggestions}
+              onEditImage={handleEditThumbnail}
           />
       )}
     </div>

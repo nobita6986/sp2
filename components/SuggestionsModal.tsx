@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import type { SeoSuggestion } from '../types';
-import { XMarkIcon, LightBulbIcon, ClipboardIcon } from './icons/UtilityIcons';
+import { XMarkIcon, LightBulbIcon, ClipboardIcon, CameraIcon } from './icons/UtilityIcons';
+import LoadingSpinner from './LoadingSpinner';
 
 interface SuggestionsModalProps {
   isOpen: boolean;
   onClose: () => void;
   suggestions: SeoSuggestion[];
   onDownload: () => void;
+  onEditImage: (prompt: string) => Promise<string>;
 }
 
 const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
@@ -18,13 +20,27 @@ const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
     }
     return (
         <button onClick={handleCopy} title="Copy to clipboard" className="absolute top-2 right-2 p-1.5 text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-md transition-colors">
-            {copied ? 'Copied!' : <ClipboardIcon className="w-4 h-4" />}
+            {copied ? 'Đã sao chép!' : <ClipboardIcon className="w-4 h-4" />}
         </button>
     )
 }
 
-const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, suggestions, onDownload }) => {
+const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, suggestions, onDownload, onEditImage }) => {
   if (!isOpen) return null;
+
+  const [imageStates, setImageStates] = useState<Record<number, { loading: boolean; url: string | null; error: string | null }>>({});
+
+  const handleGenerateImage = async (index: number, prompt: string) => {
+    setImageStates(prev => ({ ...prev, [index]: { loading: true, url: null, error: null } }));
+    try {
+        const newImageUrl = await onEditImage(prompt);
+        setImageStates(prev => ({ ...prev, [index]: { loading: false, url: newImageUrl, error: null } }));
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'An unknown error occurred';
+        setImageStates(prev => ({ ...prev, [index]: { loading: false, url: null, error: message } }));
+    }
+  };
+
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
@@ -39,7 +55,9 @@ const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, su
           </button>
         </div>
         <div className="p-6 space-y-6 overflow-y-auto">
-          {suggestions.map((suggestion, index) => (
+          {suggestions.map((suggestion, index) => {
+             const imageState = imageStates[index];
+             return (
             <div key={index} className="bg-brand-bg border border-brand-border rounded-lg p-4 space-y-3">
               <h3 className="text-md font-bold text-brand-secondary">Gói gợi ý #{index + 1}</h3>
               
@@ -68,16 +86,37 @@ const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, su
                     <CopyButton textToCopy={suggestion.thumbnail_text} />
                  </div>
                  <div className="relative">
-                    <label className="text-xs font-semibold text-brand-text-secondary">PROMPT TẠO THUMBNAIL</label>
-                    <p className="text-sm p-2 bg-brand-surface rounded-md mt-1 h-full pr-10">{suggestion.thumbnail_prompt}</p>
-                     <CopyButton textToCopy={suggestion.thumbnail_prompt} />
+                    <label className="text-xs font-semibold text-brand-text-secondary">PROMPT TẠO/CHỈNH SỬA THUMBNAIL</label>
+                    <div className="text-sm p-2 bg-brand-surface rounded-md mt-1 h-full flex flex-col justify-between">
+                         <div>
+                            <p className="pr-10">{suggestion.thumbnail_prompt}</p>
+                            <CopyButton textToCopy={suggestion.thumbnail_prompt} />
+                        </div>
+                        
+                        <div className="mt-2 space-y-2">
+                             {imageState?.url && (
+                                <img src={imageState.url} alt={`Generated thumbnail for suggestion ${index + 1}`} className="w-full rounded-md border border-brand-border" />
+                             )}
+
+                             <button 
+                                onClick={() => handleGenerateImage(index, suggestion.thumbnail_prompt)}
+                                disabled={imageState?.loading}
+                                className="w-full text-xs flex items-center justify-center bg-brand-primary/80 hover:bg-brand-primary disabled:bg-indigo-700 disabled:cursor-wait text-white font-bold py-2 px-2 rounded-md transition duration-200"
+                            >
+                                {imageState?.loading ? <><LoadingSpinner /> <span className="ml-2">Đang tạo...</span></> : <><CameraIcon className="w-4 h-4 mr-1"/> {imageState?.url ? 'Tạo lại ảnh' : 'Tạo ảnh theo gợi ý này'}</>}
+                            </button>
+
+                             {imageState?.error && <p className="text-xs text-brand-danger mt-1 text-center">Lỗi: {imageState.error}</p>}
+                        </div>
+
+                    </div>
                  </div>
               </div>
             </div>
-          ))}
+          )})}
         </div>
          <div className="flex justify-between items-center p-4 bg-brand-bg rounded-b-lg border-t border-brand-border sticky bottom-0">
-            <p className="text-xs text-brand-text-secondary">Lưu lại các gợi ý này để sử dụng sau.</p>
+            <p className="text-xs text-brand-text-secondary">Chỉnh sửa ảnh thumbnail gốc bằng AI.</p>
             <div>
               <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-brand-text-primary bg-brand-surface hover:bg-gray-700 border border-brand-border rounded-md mr-2">Đóng</button>
               <button onClick={onDownload} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary hover:bg-brand-primary-hover rounded-md">Tải về (.txt)</button>

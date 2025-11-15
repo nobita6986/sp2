@@ -1,15 +1,27 @@
 import type { User } from '@supabase/supabase-js';
 
-export type AIProvider = 'gemini' | 'openai';
+// --- NEW API KEY MANAGEMENT SCHEMA ---
+export type ApiKeyService = 'gemini' | 'youtube' | 'youtubeTranscript';
+export type ApiKeyStatus = 'unchecked' | 'valid' | 'invalid';
 
-export interface ApiConfig {
-    provider: AIProvider;
-    model: string;
-    geminiKey: string;
-    openAIKey: string;
-    youtubeKey: string;
-    youtubeTranscriptKey: string;
+export interface ApiKeyEntry {
+    id: string;
+    user_id?: string;
+    service: ApiKeyService;
+    api_key: string;
+    is_active: boolean;
+    status: ApiKeyStatus;
+    created_at: string;
 }
+
+// The new ApiConfig structure holds arrays of keys for each service
+export interface ApiConfig {
+    gemini: ApiKeyEntry[];
+    youtube: ApiKeyEntry[];
+    youtubeTranscript: ApiKeyEntry[];
+}
+// --- END NEW API KEY MANAGEMENT SCHEMA ---
+
 
 export interface VideoData {
   title: string;
@@ -17,12 +29,6 @@ export interface VideoData {
   tags: string;
   transcript: string;
   youtubeLink: string;
-}
-
-// Giữ lại interface cũ để tương thích, nhưng ApiConfig mới sẽ được ưu tiên sử dụng
-export interface ApiKeys {
-  gemini: string;
-  youtube: string;
 }
 
 // Fix: Add Issue interface for RecommendationCard.tsx

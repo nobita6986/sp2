@@ -1,4 +1,3 @@
-
 import type { VideoData } from '../types';
 
 export const fetchVideoMetadata = async (videoId: string, apiKey: string): Promise<Partial<VideoData> & { thumbnailUrl?: string }> => {
@@ -11,7 +10,12 @@ export const fetchVideoMetadata = async (videoId: string, apiKey: string): Promi
     const response = await fetch(url);
     if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error.message || 'Failed to fetch video data from YouTube API.');
+        const message = errorData?.error?.message || 'Failed to fetch video data from YouTube API.';
+        // Check for specific invalid key message
+        if (message.includes('API key not valid')) {
+            throw new Error('The provided YouTube Data API Key is invalid.');
+        }
+        throw new Error(message);
     }
     const data = await response.json();
     

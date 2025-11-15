@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import type { VideoData, AnalysisResult, ApiConfig, SeoSuggestion } from '../types';
+import type { VideoData, AnalysisResult, SeoSuggestion } from '../types';
 import { scoringSchema, outputExample } from './scoringSchema';
 
 const responseSchema = {
@@ -77,16 +77,17 @@ const responseSchema = {
 };
 
 
-export const analyzeVideoContent = async (videoData: VideoData, thumbnailBase64: string | null, config: ApiConfig): Promise<AnalysisResult> => {
-  if (config.provider === 'openai') {
-      throw new Error("OpenAI provider is not yet implemented.");
-  }
-  
-  if (!config.geminiKey) {
+export const analyzeVideoContent = async (
+    videoData: VideoData, 
+    thumbnailBase64: string | null, 
+    geminiKey: string,
+    model: string = 'gemini-2.5-flash' // Default model
+): Promise<AnalysisResult> => {
+  if (!geminiKey) {
     throw new Error("An API Key must be set when running in a browser");
   }
 
-  const ai = new GoogleGenAI({ apiKey: config.geminiKey });
+  const ai = new GoogleGenAI({ apiKey: geminiKey });
 
   const prompt = `
     Act as a deterministic, rule-based YouTube SEO scoring engine. Your name is ClearCue.
@@ -132,7 +133,7 @@ export const analyzeVideoContent = async (videoData: VideoData, thumbnailBase64:
   }
 
   const response = await ai.models.generateContent({
-    model: config.model,
+    model: model,
     contents: { parts: parts },
     config: {
         responseMimeType: "application/json",
@@ -170,12 +171,13 @@ const suggestionsResponseSchema = {
 export const getSeoSuggestions = async (
     videoData: VideoData,
     analysisResult: AnalysisResult,
-    config: ApiConfig
+    geminiKey: string,
+    model: string = 'gemini-2.5-flash'
 ): Promise<SeoSuggestion[]> => {
-    if (!config.geminiKey) {
+    if (!geminiKey) {
         throw new Error("Gemini API Key is not configured.");
     }
-    const ai = new GoogleGenAI({ apiKey: config.geminiKey });
+    const ai = new GoogleGenAI({ apiKey: geminiKey });
 
     const prompt = `
     Act as an expert YouTube SEO strategist. Your task is to generate 5 distinct, highly optimized SEO packages for a YouTube video.
@@ -207,7 +209,7 @@ export const getSeoSuggestions = async (
     `;
 
     const response = await ai.models.generateContent({
-        model: config.model,
+        model: model,
         contents: { parts: [{ text: prompt }] },
         config: {
             responseMimeType: "application/json",

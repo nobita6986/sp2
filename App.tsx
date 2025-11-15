@@ -43,12 +43,9 @@ const App: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [apiConfig, setApiConfig] = useState<ApiConfig>({
-      provider: 'gemini',
-      model: 'gemini-2.5-flash',
-      geminiKey: '',
-      openAIKey: '',
-      youtubeKey: '',
-      youtubeTranscriptKey: '6918b060522a1fa0d931dad6',
+      gemini: [],
+      youtube: [],
+      youtubeTranscript: [],
   });
 
   // Supabase Auth Effect
@@ -78,7 +75,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogin = async () => {
-    await supabase.auth.signInWithOAuth({ provider: 'google' });
+    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.href } });
   };
 
   const handleLogout = async () => {
@@ -103,8 +100,9 @@ const App: React.FC = () => {
       return;
     }
     
-    if (!apiConfig.youtubeKey) {
-        setError("Vui lòng nhập YouTube Data API Key trong phần Cấu hình API.");
+    const activeYoutubeKey = apiConfig.youtube.find(k => k.is_active)?.api_key;
+    if (!activeYoutubeKey) {
+        setError("Vui lòng kích hoạt một YouTube Data API Key trong phần Cấu hình API.");
         setIsApiModalOpen(true);
         return;
     }
@@ -112,7 +110,7 @@ const App: React.FC = () => {
     setIsFetchingMeta(true);
     setError(null);
     try {
-        const metadata = await fetchVideoMetadata(videoId, apiConfig.youtubeKey);
+        const metadata = await fetchVideoMetadata(videoId, activeYoutubeKey);
         const { thumbnailUrl, ...videoMeta } = metadata;
 
         setVideoData(prev => ({
@@ -138,7 +136,7 @@ const App: React.FC = () => {
     } finally {
         setIsFetchingMeta(false);
     }
-  }, [apiConfig.youtubeKey, videoData.youtubeLink]);
+  }, [apiConfig.youtube, videoData.youtubeLink]);
 
   const handleFetchTranscript = useCallback(async () => {
     const url = videoData.youtubeLink;
@@ -151,16 +149,12 @@ const App: React.FC = () => {
       setError("Link YouTube không hợp lệ.");
       return;
     }
-    if (!apiConfig.youtubeTranscriptKey) {
-      setError("Vui lòng nhập YouTube Transcript API Key trong Cấu hình API.");
-      setIsApiModalOpen(true);
-      return;
-    }
-
+    const activeTranscriptKey = apiConfig.youtubeTranscript.find(k => k.is_active)?.api_key || '6918b060522a1fa0d931dad6'; // Fallback to default
+    
     setIsFetchingTranscript(true);
     setError(null);
     try {
-      const transcriptText = await fetchTranscript(videoId, apiConfig.youtubeTranscriptKey);
+      const transcriptText = await fetchTranscript(videoId, activeTranscriptKey);
       setVideoData(prev => ({ ...prev, transcript: transcriptText }));
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
@@ -168,7 +162,7 @@ const App: React.FC = () => {
     } finally {
       setIsFetchingTranscript(false);
     }
-  }, [apiConfig.youtubeTranscriptKey, videoData.youtubeLink]);
+  }, [apiConfig.youtubeTranscript, videoData.youtubeLink]);
 
 
   const handleThumbnailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,8 +196,9 @@ const App: React.FC = () => {
 
 
   const handleAnalyze = async () => {
-    if (!apiConfig.geminiKey) {
-        setError("Vui lòng nhập Gemini API Key trong phần Cấu hình API.");
+    const activeGeminiKey = apiConfig.gemini.find(k => k.is_active)?.api_key;
+    if (!activeGeminiKey) {
+        setError("Vui lòng kích hoạt một Gemini API Key trong phần Cấu hình API.");
         setIsApiModalOpen(true);
         return;
     }
@@ -226,7 +221,9 @@ const App: React.FC = () => {
     }
     
     try {
-        const result = await analyzeVideoContent(videoData, pureBase64, apiConfig);
+        // For simplicity, we can hardcode or add a model selector later
+        const model = 'gemini-2.5-flash'; 
+        const result = await analyzeVideoContent(videoData, pureBase64, activeGeminiKey, model);
         setAnalysisResult(result);
         await handleSaveSession(result);
     } catch (err: unknown) {
@@ -242,12 +239,20 @@ const App: React.FC = () => {
           setError("Phải có kết quả phân tích trước khi nhận gợi ý.");
           return;
       }
+      
+      const activeGeminiKey = apiConfig.gemini.find(k => k.is_active)?.api_key;
+      if (!activeGeminiKey) {
+          setError("Vui lòng kích hoạt một Gemini API Key trong phần Cấu hình API.");
+          setIsApiModalOpen(true);
+          return;
+      }
 
       setIsSuggestionsLoading(true);
       setError(null);
 
       try {
-          const suggestions = await getSeoSuggestions(videoData, analysisResult, apiConfig);
+          const model = 'gemini-2.5-flash';
+          const suggestions = await getSeoSuggestions(videoData, analysisResult, activeGeminiKey, model);
           setSeoSuggestions(suggestions);
 
           if (currentSession) {
@@ -345,17 +350,11 @@ const App: React.FC = () => {
 
       {isApiModalOpen && (
           <ApiConfigModal 
-            config={apiConfig}
+            initialConfig={apiConfig}
+            user={user}
             onClose={() => setIsApiModalOpen(false)}
-            onSave={async (newConfig) => {
-                try {
-                    await apiConfigService.saveApiConfig(newConfig, user);
-                    setApiConfig(newConfig);
-                    setIsApiModalOpen(false);
-                } catch (err) {
-                    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
-                    setError(`Không thể lưu cấu hình API: ${errorMessage}`);
-                }
+            onConfigChange={(newConfig) => {
+                setApiConfig(newConfig);
             }}
           />
       )}

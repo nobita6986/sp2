@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { ApiConfig, ApiKeyEntry, ApiKeyService, ApiKeyStatus } from '../types';
-import { KeyIcon, XMarkIcon, TrashIcon } from './icons/UtilityIcons';
+import { KeyIcon, XMarkIcon, TrashIcon, GeminiIcon } from './icons/UtilityIcons';
+import { YoutubeIcon } from './icons/YoutubeIcon';
 import * as apiValidationService from '../services/apiValidationService';
 import * as apiConfigService from '../services/apiConfigService';
 import { SERVICE_NAMES } from '../constants';
@@ -60,6 +61,13 @@ const ApiKeyRow: React.FC<{
     );
 };
 
+const serviceIcons: Record<ApiKeyService, React.FC<React.SVGProps<SVGSVGElement>>> = {
+    gemini: (props) => <GeminiIcon {...props} className="w-5 h-5 text-gray-400" />,
+    youtube: (props) => <YoutubeIcon {...props} className="w-6 h-6 text-red-500" />,
+    youtubeTranscript: (props) => <YoutubeIcon {...props} className="w-6 h-6 text-red-500" />,
+};
+
+
 const ApiServiceSection: React.FC<{
     service: ApiKeyService;
     keys: ApiKeyEntry[];
@@ -70,6 +78,7 @@ const ApiServiceSection: React.FC<{
     testingKeyState: Record<string, boolean>;
 }> = ({ service, keys, onKeyAdded, onKeyDeleted, onKeyTested, onKeySetActive, testingKeyState }) => {
     const [newKey, setNewKey] = useState('');
+    const ServiceIcon = serviceIcons[service];
 
     const handleAdd = () => {
         if (newKey.trim()) {
@@ -80,7 +89,10 @@ const ApiServiceSection: React.FC<{
 
     return (
         <div>
-            <h3 className="text-md font-semibold text-brand-text-primary mb-3">{SERVICE_NAMES[service]}</h3>
+            <div className="flex items-center space-x-2 mb-3">
+                <h3 className="text-md font-semibold text-brand-text-primary">{SERVICE_NAMES[service]}</h3>
+                {ServiceIcon && <ServiceIcon />}
+            </div>
             <div className="space-y-2 mb-3">
                 {keys.length > 0 ? (
                     keys.map(key => <ApiKeyRow 

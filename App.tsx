@@ -15,16 +15,16 @@ import ApiConfigModal from './components/ApiConfigModal';
 import LibraryModal from './components/LibraryModal';
 import SuggestionsModal from './components/SuggestionsModal';
 import { initialVideoData, placeholderVideoData, SERVICE_NAMES } from './constants';
-import { fileToDataUrl, dataUrlToPureBase64, downloadTextFile } from './utils/fileUtils';
+import { fileToFullResDataUrl, resizeImageToDataUrl, dataUrlToPureBase64, downloadTextFile } from './utils/fileUtils';
 import type { User } from '@supabase/supabase-js';
+
+const THUMBNAIL_PREVIEW_WIDTH = 480; // px
 
 const App: React.FC = () => {
   // Core App State
   const [videoData, setVideoData] = useState<VideoData>(initialVideoData);
-  const [thumbnail, setThumbnail] = useState<{ file: File | null; preview: string | null }>({
-    file: null,
-    preview: null,
-  });
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState<string | null>(null);
+  const [fullResThumbnailUrl, setFullResThumbnailUrl] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [seoSuggestions, setSeoSuggestions] = useState<SeoSuggestion[] | null>(null);
   
@@ -151,6 +151,20 @@ const App: React.FC = () => {
   }, [apiConfig, user, findBestApiKey]);
 
 
+  const processThumbnailFile = useCallback(async (file: File) => {
+    try {
+        const [fullRes, preview] = await Promise.all([
+            fileToFullResDataUrl(file),
+            resizeImageToDataUrl(file, THUMBNAIL_PREVIEW_WIDTH)
+        ]);
+        setFullResThumbnailUrl(fullRes);
+        setThumbnailPreviewUrl(preview);
+    } catch (err) {
+        setError('Không thể xử lý ảnh thumbnail.');
+        console.error(err);
+    }
+  }, []);
+
   const handleFetchMetadata = useCallback(async () => {
     const url = videoData.youtubeLink;
     if (!url) {
@@ -181,8 +195,7 @@ const App: React.FC = () => {
           if (!imageResponse.ok) throw new Error('Không thể tải thumbnail.');
           const imageBlob = await imageResponse.blob();
           const thumbnailFile = new File([imageBlob], 'thumbnail.jpg', { type: imageBlob.type });
-          const preview = URL.createObjectURL(thumbnailFile);
-          setThumbnail({ file: thumbnailFile, preview: preview });
+          await processThumbnailFile(thumbnailFile);
         }
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
@@ -190,7 +203,7 @@ const App: React.FC = () => {
     } finally {
         setIsFetchingMeta(false);
     }
-  }, [videoData.youtubeLink, withApiFallback]);
+  }, [videoData.youtubeLink, withApiFallback, processThumbnailFile]);
 
   const handleFetchTranscript = useCallback(async () => {
     const url = videoData.youtubeLink;
@@ -224,14 +237,13 @@ const App: React.FC = () => {
   const handleThumbnailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const preview = URL.createObjectURL(file);
-      setThumbnail({ file, preview });
+      processThumbnailFile(file);
     }
-  }, []);
+  }, [processThumbnailFile]);
   
   const handleSaveSession = useCallback(async (
     resultToSave: AnalysisResult, 
-    thumbnailDataUrl: string | null
+    thumbnailPreviewToSave: string | null
   ) => {
     if (!videoData.title) return;
     
@@ -239,7 +251,7 @@ const App: React.FC = () => {
       videoTitle: videoData.title,
       videoData,
       analysisResult: resultToSave,
-      thumbnailPreview: thumbnailDataUrl,
+      thumbnailPreview: thumbnailPreviewToSave,
       seoSuggestions: null,
     };
     
@@ -261,24 +273,16 @@ const App: React.FC = () => {
     setSeoSuggestions(null);
     setCurrentSession(null);
     setIsLoading(true);
-
-    let thumbnailDataUrl: string | null = null;
     
     try {
-        if (thumbnail.file) {
-            thumbnailDataUrl = await fileToDataUrl(thumbnail.file);
-        } else if (thumbnail.preview && thumbnail.preview.startsWith('data:')) {
-            thumbnailDataUrl = thumbnail.preview;
-        }
-
         const result = await withApiFallback('gemini', async (apiKey) => {
-            const pureBase64 = thumbnailDataUrl ? dataUrlToPureBase64(thumbnailDataUrl) : null;
+            const pureBase64 = fullResThumbnailUrl ? dataUrlToPureBase64(fullResThumbnailUrl) : null;
             const model = 'gemini-2.5-flash';
             return analyzeVideoContent(videoData, pureBase64, apiKey, model);
         });
 
         setAnalysisResult(result);
-        await handleSaveSession(result, thumbnailDataUrl);
+        await handleSaveSession(result, thumbnailPreviewUrl);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
         setError(`Phân tích thất bại: ${errorMessage}`);
@@ -305,11 +309,11 @@ const App: React.FC = () => {
           setSeoSuggestions(suggestions);
 
           if (currentSession) {
-              await sessionService.updateSessionSuggestions(currentSession.id, suggestions, user);
               const updatedSession = { ...currentSession, seoSuggestions: suggestions };
+              await sessionService.updateSessionSuggestions(currentSession.id, suggestions, user);
               setCurrentSession(updatedSession);
-              const updatedSessions = sessions.map(s => s.id === currentSession.id ? updatedSession : s);
-              setSessions(updatedSessions);
+              // Also update the list in the library state to reflect the change immediately
+              setSessions(sessions.map(s => s.id === currentSession.id ? updatedSession : s));
           }
 
           setIsSuggestionsModalOpen(true);
@@ -345,7 +349,9 @@ const App: React.FC = () => {
   const handleLoadSession = (session: Session) => {
       setVideoData(session.videoData);
       setAnalysisResult(session.analysisResult);
-      setThumbnail({ file: null, preview: session.thumbnailPreview });
+      setThumbnailPreviewUrl(session.thumbnailPreview);
+      // We don't save full-res, so it will be null, which is fine. Re-fetch if analysis needed.
+      setFullResThumbnailUrl(null); 
       setSeoSuggestions(session.seoSuggestions || null);
       setCurrentSession(session);
       setError(null);
@@ -383,7 +389,7 @@ const App: React.FC = () => {
           </div>
           <div className="lg:col-span-2 space-y-8">
             <ThumbnailSection
-              thumbnailPreview={thumbnail.preview}
+              thumbnailPreview={thumbnailPreviewUrl}
               analysisResult={analysisResult}
               onThumbnailChange={handleThumbnailChange}
               onAnalyze={handleAnalyze}

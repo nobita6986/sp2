@@ -164,9 +164,26 @@ const ApiConfigModal: React.FC<ApiConfigModalProps> = ({ initialConfig, user, on
     };
     
     const handleSetActiveKey = async (keyId: string, service: ApiKeyService) => {
-        await apiConfigService.setActiveApiKey(user, keyId, service);
-        const updatedConfig = await apiConfigService.getApiConfig(user); // Refetch to ensure consistency
-        setConfig(updatedConfig);
+        const originalConfig = config;
+        // Optimistic UI update for instant feedback
+        const optimisticConfig = {
+            ...config,
+            [service]: config[service].map(key => ({
+                ...key,
+                is_active: key.id === keyId,
+            })),
+        };
+        setConfig(optimisticConfig);
+
+        try {
+            // Actual API call
+            await apiConfigService.setActiveApiKey(user, keyId, service);
+        } catch (error) {
+            console.error("Failed to activate API key:", error);
+            alert("Không thể kích hoạt API key. Điều này có thể do lỗi cấu hình cơ sở dữ liệu. Vui lòng kiểm tra lại hoặc liên hệ hỗ trợ.");
+            // Revert to the original state on failure
+            setConfig(originalConfig);
+        }
     };
 
     return (

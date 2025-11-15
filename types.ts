@@ -81,6 +81,13 @@ export interface AnalysisResult {
   recommendations: Recommendations;
 }
 
+export interface SeoSuggestion {
+  title: string;
+  description: string;
+  tags: string;
+  thumbnail_text: string;
+  thumbnail_prompt: string;
+}
 
 export interface Session {
     id: string;
@@ -90,4 +97,5 @@ export interface Session {
     videoData: VideoData;
     analysisResult: AnalysisResult;
     thumbnailPreview: string | null;
+    seoSuggestions?: SeoSuggestion[] | null;
 }

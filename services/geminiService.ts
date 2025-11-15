@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import type { VideoData, AnalysisResult, ApiConfig } from '../types';
+import type { VideoData, AnalysisResult, ApiConfig, SeoSuggestion } from '../types';
 import { scoringSchema, outputExample } from './scoringSchema';
 
 const responseSchema = {
@@ -150,4 +150,81 @@ export const analyzeVideoContent = async (videoData: VideoData, thumbnailBase64:
     console.error("Failed to parse Gemini response:", jsonString, error);
     throw new Error("Received invalid JSON format from the analysis service.");
   }
+};
+
+const suggestionsResponseSchema = {
+    type: Type.ARRAY,
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            title: { type: Type.STRING },
+            description: { type: Type.STRING },
+            tags: { type: Type.STRING },
+            thumbnail_text: { type: Type.STRING },
+            thumbnail_prompt: { type: Type.STRING },
+        },
+        required: ["title", "description", "tags", "thumbnail_text", "thumbnail_prompt"],
+    },
+};
+
+export const getSeoSuggestions = async (
+    videoData: VideoData,
+    analysisResult: AnalysisResult,
+    config: ApiConfig
+): Promise<SeoSuggestion[]> => {
+    if (!config.geminiKey) {
+        throw new Error("Gemini API Key is not configured.");
+    }
+    const ai = new GoogleGenAI({ apiKey: config.geminiKey });
+
+    const prompt = `
+    Act as an expert YouTube SEO strategist. Your task is to generate 5 distinct, highly optimized SEO packages for a YouTube video.
+    You will be given the original video data and a detailed SEO analysis report.
+    Your goal is to improve upon the weaknesses identified in the analysis and create compelling, clickable, and search-friendly metadata.
+    All output must be in Vietnamese.
+
+    RULES:
+    1.  Generate EXACTLY 5 packages.
+    2.  Each package MUST include: title, description, tags (comma-separated string), thumbnail_text (text to put on the thumbnail), and thumbnail_prompt (a DALL-E/Midjourney style prompt to generate the thumbnail image).
+    3.  Base your suggestions on the provided analysis. If the analysis said the title was too long, make it shorter. If it lacked keywords, add them.
+    4.  The output MUST be a valid JSON array of objects, strictly adhering to the provided schema. Do not include any text before or after the JSON array.
+
+    ---
+    EXISTING VIDEO DATA:
+    - Title: ${videoData.title}
+    - Description: ${videoData.description}
+    - Tags: ${videoData.tags}
+    - Transcript: ${videoData.transcript}
+
+    ---
+    EXISTING SEO ANALYSIS REPORT:
+    - Overall Score: ${analysisResult.total_score.value}/${analysisResult.total_score.max}
+    - Summary: ${analysisResult.total_score.summary}
+    - Key Recommendations: ${analysisResult.recommendations.priority_order.join(', ')}
+
+    ---
+    Now, generate the 5 SEO packages as a JSON array.
+    `;
+
+    const response = await ai.models.generateContent({
+        model: config.model,
+        contents: { parts: [{ text: prompt }] },
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: suggestionsResponseSchema,
+            temperature: 0.7, // Allow for some creativity in suggestions
+        }
+    });
+
+    const jsonString = response.text.trim();
+    try {
+        const result: SeoSuggestion[] = JSON.parse(jsonString);
+        if (result.length < 1) { // Check for at least one suggestion
+            throw new Error(`Expected at least 1 suggestion, but received ${result.length}.`);
+        }
+        return result;
+    } catch (error) {
+        console.error("Failed to parse SEO suggestions from Gemini:", jsonString, error);
+        throw new Error("Received invalid JSON format for SEO suggestions.");
+    }
 };

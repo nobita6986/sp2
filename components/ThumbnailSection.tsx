@@ -1,7 +1,7 @@
 import React from 'react';
-import { UploadIcon, SparklesIcon } from './icons/UtilityIcons';
+import { UploadIcon, SparklesIcon, LightBulbIcon } from './icons/UtilityIcons';
 import LoadingSpinner from './LoadingSpinner';
-import type { AnalysisResult } from '../types';
+import type { AnalysisResult, SeoSuggestion } from '../types';
 
 interface ThumbnailSectionProps {
   thumbnailPreview: string | null;
@@ -9,9 +9,23 @@ interface ThumbnailSectionProps {
   onThumbnailChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onAnalyze: () => void;
   isLoading: boolean;
+  seoSuggestions: SeoSuggestion[] | null;
+  isSuggestionsLoading: boolean;
+  onGetSuggestions: () => void;
+  onShowSuggestions: () => void;
 }
 
-const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({ thumbnailPreview, analysisResult, onThumbnailChange, onAnalyze, isLoading }) => {
+const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({ 
+  thumbnailPreview, 
+  analysisResult, 
+  onThumbnailChange, 
+  onAnalyze, 
+  isLoading,
+  seoSuggestions,
+  isSuggestionsLoading,
+  onGetSuggestions,
+  onShowSuggestions
+}) => {
   const overallScore = analysisResult?.total_score?.value;
   const scoreProgress = overallScore !== undefined ? overallScore : 0;
   
@@ -81,6 +95,28 @@ const ThumbnailSection: React.FC<ThumbnailSectionProps> = ({ thumbnailPreview, a
             )}
             <p className="text-sm text-brand-text-secondary">Điểm SEO tổng thể</p>
         </div>
+        
+        {analysisResult && (
+            <div className="pt-4 border-t border-brand-border">
+                <button
+                    onClick={seoSuggestions ? onShowSuggestions : onGetSuggestions}
+                    disabled={isSuggestionsLoading || isLoading}
+                    className="w-full flex items-center justify-center bg-brand-secondary/80 hover:bg-brand-secondary disabled:bg-amber-700 disabled:cursor-not-allowed text-brand-bg font-bold py-3 px-4 rounded-lg transition duration-200"
+                >
+                    {isSuggestionsLoading ? (
+                        <>
+                            <LoadingSpinner />
+                            <span className="ml-2">Đang tạo gợi ý...</span>
+                        </>
+                    ) : (
+                        <>
+                            <LightBulbIcon className="w-5 h-5 mr-2" />
+                            <span>{seoSuggestions ? 'Xem gợi ý' : 'Nhận gợi ý từ AI'}</span>
+                        </>
+                    )}
+                </button>
+            </div>
+        )}
     </div>
   );
 };

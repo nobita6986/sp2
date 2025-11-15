@@ -1,7 +1,6 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
-import type { AnalysisResult, VideoData, ApiConfig, Session } from './types';
-import { analyzeVideoContent } from './services/geminiService';
+import type { AnalysisResult, VideoData, ApiConfig, Session, SeoSuggestion } from './types';
+import { analyzeVideoContent, getSeoSuggestions } from './services/geminiService';
 import { fetchVideoMetadata } from './services/youtubeService';
 import { fetchTranscript } from './services/transcriptService';
 import { extractVideoId } from './utils/youtubeUtils';
@@ -14,8 +13,9 @@ import ThumbnailSection from './components/ThumbnailSection';
 import ResultsSection from './components/ResultsSection';
 import ApiConfigModal from './components/ApiConfigModal';
 import LibraryModal from './components/LibraryModal';
+import SuggestionsModal from './components/SuggestionsModal';
 import { initialVideoData, placeholderVideoData } from './constants';
-import { fileToBase64 } from './utils/fileUtils';
+import { fileToBase64, downloadTextFile } from './utils/fileUtils';
 import type { User } from '@supabase/supabase-js';
 
 const App: React.FC = () => {
@@ -26,11 +26,14 @@ const App: React.FC = () => {
     preview: null,
   });
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [seoSuggestions, setSeoSuggestions] = useState<SeoSuggestion[] | null>(null);
   
   // UI State
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isFetchingMeta, setIsFetchingMeta] = useState<boolean>(false);
   const [isFetchingTranscript, setIsFetchingTranscript] = useState<boolean>(false);
+  const [isSuggestionsLoading, setIsSuggestionsLoading] = useState<boolean>(false);
+  const [isSuggestionsModalOpen, setIsSuggestionsModalOpen] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [isApiModalOpen, setIsApiModalOpen] = useState<boolean>(false);
   const [isLibraryModalOpen, setIsLibraryModalOpen] = useState<boolean>(false);
@@ -38,6 +41,7 @@ const App: React.FC = () => {
   // User and Data State
   const [user, setUser] = useState<User | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [apiConfig, setApiConfig] = useState<ApiConfig>({
       provider: 'gemini',
       model: 'gemini-2.5-flash',
@@ -176,17 +180,19 @@ const App: React.FC = () => {
   }, []);
   
   const handleSaveSession = useCallback(async (resultToSave: AnalysisResult) => {
-    if (!videoData.title) return; // Don't save if there's no title
+    if (!videoData.title) return;
     
-    const newSession: Omit<Session, 'id' | 'user_id' | 'created_at'> = {
+    const newSessionData: Omit<Session, 'id' | 'user_id' | 'created_at'> = {
       videoTitle: videoData.title,
       videoData,
       analysisResult: resultToSave,
-      thumbnailPreview: null, // Thumbnail saving is disabled to prevent potential rendering bugs.
+      thumbnailPreview: null,
+      seoSuggestions: null,
     };
     
     try {
-        await sessionService.saveSession(newSession, user);
+        const savedSession = await sessionService.saveSession(newSessionData, user);
+        setCurrentSession(savedSession);
         const userSessions = await sessionService.getSessions(user);
         setSessions(userSessions);
     } catch (error) {
@@ -204,6 +210,8 @@ const App: React.FC = () => {
     
     setError(null);
     setAnalysisResult(null);
+    setSeoSuggestions(null);
+    setCurrentSession(null);
     setIsLoading(true);
 
     let pureBase64: string | null = null;
@@ -229,10 +237,61 @@ const App: React.FC = () => {
     }
   };
 
+  const handleGetSuggestions = async () => {
+      if (!analysisResult) {
+          setError("Phải có kết quả phân tích trước khi nhận gợi ý.");
+          return;
+      }
+
+      setIsSuggestionsLoading(true);
+      setError(null);
+
+      try {
+          const suggestions = await getSeoSuggestions(videoData, analysisResult, apiConfig);
+          setSeoSuggestions(suggestions);
+
+          if (currentSession) {
+              await sessionService.updateSessionSuggestions(currentSession.id, suggestions, user);
+              const updatedSessions = sessions.map(s => s.id === currentSession.id ? {...s, seoSuggestions: suggestions} : s);
+              setSessions(updatedSessions);
+          }
+
+          setIsSuggestionsModalOpen(true);
+      } catch (err: unknown) {
+          const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+          setError(`Lỗi khi nhận gợi ý: ${errorMessage}`);
+      } finally {
+          setIsSuggestionsLoading(false);
+      }
+  };
+
+ const handleDownloadSuggestions = () => {
+    if (!seoSuggestions) return;
+
+    let content = `SEO Suggestions for "${videoData.title}"\n`;
+    content += "========================================\n\n";
+
+    seoSuggestions.forEach((suggestion, index) => {
+        content += `---------- Gói gợi ý #${index + 1} ----------\n\n`;
+        content += `Tiêu đề:\n${suggestion.title}\n\n`;
+        content += `Mô tả:\n${suggestion.description}\n\n`;
+        content += `Tags:\n${suggestion.tags}\n\n`;
+        content += `Văn bản trên Thumbnail:\n${suggestion.thumbnail_text}\n\n`;
+        content += `Prompt tạo Thumbnail:\n${suggestion.thumbnail_prompt}\n\n`;
+        content += "========================================\n\n";
+    });
+    
+    const filename = `seo-suggestions-${videoData.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.txt`;
+    downloadTextFile(content, filename);
+};
+
+
   const handleLoadSession = (session: Session) => {
       setVideoData(session.videoData);
       setAnalysisResult(session.analysisResult);
       setThumbnail({ file: null, preview: session.thumbnailPreview });
+      setSeoSuggestions(session.seoSuggestions || null);
+      setCurrentSession(session);
       setIsLibraryModalOpen(false);
   }
 
@@ -272,6 +331,10 @@ const App: React.FC = () => {
               onThumbnailChange={handleThumbnailChange}
               onAnalyze={handleAnalyze}
               isLoading={isLoading || isFetchingMeta}
+              seoSuggestions={seoSuggestions}
+              isSuggestionsLoading={isSuggestionsLoading}
+              onGetSuggestions={handleGetSuggestions}
+              onShowSuggestions={() => setIsSuggestionsModalOpen(true)}
             />
           </div>
         </div>
@@ -303,6 +366,14 @@ const App: React.FC = () => {
             onClose={() => setIsLibraryModalOpen(false)}
             onLoadSession={handleLoadSession}
             onDeleteSession={handleDeleteSession}
+          />
+      )}
+      {isSuggestionsModalOpen && seoSuggestions && (
+          <SuggestionsModal
+              isOpen={isSuggestionsModalOpen}
+              onClose={() => setIsSuggestionsModalOpen(false)}
+              suggestions={seoSuggestions}
+              onDownload={handleDownloadSuggestions}
           />
       )}
     </div>

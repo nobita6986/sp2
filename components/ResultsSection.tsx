@@ -25,6 +25,16 @@ const getGradeColor = (grade: string) => {
     }
 }
 
+const categoryTranslations: Record<string, string> = {
+  'Search Intent Fit': 'Phù hợp Ý định Tìm kiếm',
+  'Keyword Targeting & Coverage': 'Mục tiêu & Độ phủ Từ khóa',
+  'Title Optimization': 'Tối ưu hóa Tiêu đề',
+  'Description Optimization': 'Tối ưu hóa Mô tả',
+  'Hashtags & Tags': 'Hashtags & Thẻ',
+  'Structure & Accessibility': 'Cấu trúc & Khả năng Tiếp cận',
+  'Channel & Context Fit': 'Phù hợp Kênh & Bối cảnh',
+};
+
 const subcriteriaTranslations: Record<string, string> = {
   // Subcriteria
   'Intent match': 'Mức độ khớp về ý định (hướng dẫn, thông tin, đánh giá...) giữa từ khóa, tiêu đề và mô tả.',
@@ -89,7 +99,10 @@ const CategoryAccordion: React.FC<{ category: Category }> = ({ category }) => {
                 <div className="flex items-center space-x-4">
                     <ScoreCard title={category.label} scoreValue={category.score.value} scoreMax={category.score.max} />
                     <div>
-                        <h4 className="font-semibold text-brand-text-primary">{category.label}</h4>
+                        <h4 className="font-semibold text-brand-text-primary">
+                          {category.label}
+                          {categoryTranslations[category.label] && <span className="font-normal text-brand-text-secondary ml-2">({categoryTranslations[category.label]})</span>}
+                        </h4>
                         <p className="text-sm text-brand-text-secondary">{category.summary}</p>
                     </div>
                 </div>

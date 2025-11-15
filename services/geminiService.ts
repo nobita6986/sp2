@@ -64,12 +64,11 @@ const responseSchema = {
       properties: {
         priority_order: { type: Type.ARRAY, items: { type: Type.STRING } },
         quick_wins: { type: Type.ARRAY, items: { type: Type.STRING } },
-        by_category: { 
-            type: Type.OBJECT,
-            // Defines a map where keys are strings and values are arrays of strings.
-            // Since this is complex and not all categories might have recommendations, 
-            // we'll keep it flexible and not enforce properties.
-        },
+        // The 'by_category' field is intentionally omitted from the schema
+        // because its dynamic keys (category IDs) are not compatible with a
+        // fixed property definition, which caused a validation error.
+        // The model will still generate this field based on the provided
+        // 'outputExample' in the prompt.
       },
        required: ["priority_order", "quick_wins"]
     },
@@ -82,12 +81,8 @@ export const analyzeVideoContent = async (videoData: VideoData, thumbnailBase64:
   if (config.provider === 'openai') {
       throw new Error("OpenAI provider is not yet implemented.");
   }
-
-  if (!config.geminiKey) {
-    throw new Error("Gemini API Key is not provided. Please add it in the configuration section.");
-  }
   
-  const ai = new GoogleGenAI({ apiKey: config.geminiKey });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `
     Act as an expert YouTube SEO analyst. Your name is ClearCue.

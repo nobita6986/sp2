@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { SeoSuggestion } from '../types';
-import { XMarkIcon, LightBulbIcon, ClipboardIcon, CameraIcon } from './icons/UtilityIcons';
+import { XMarkIcon, LightBulbIcon, ClipboardIcon, CameraIcon, PencilIcon, CheckIcon } from './icons/UtilityIcons';
 import LoadingSpinner from './LoadingSpinner';
 
 interface SuggestionsModalProps {
@@ -11,7 +11,7 @@ interface SuggestionsModalProps {
   onEditImage: (prompt: string) => Promise<string>;
 }
 
-const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
+const CopyButton: React.FC<{ textToCopy: string; className?: string }> = ({ textToCopy, className = '' }) => {
     const [copied, setCopied] = useState(false);
     const handleCopy = () => {
         navigator.clipboard.writeText(textToCopy);
@@ -19,8 +19,8 @@ const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
         setTimeout(() => setCopied(false), 2000);
     }
     return (
-        <button onClick={handleCopy} title="Copy to clipboard" className="absolute top-2 right-2 p-1.5 text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-md transition-colors">
-            {copied ? 'Đã sao chép!' : <ClipboardIcon className="w-4 h-4" />}
+        <button onClick={handleCopy} title="Copy to clipboard" className={`p-1.5 text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-md transition-colors ${className}`}>
+            {copied ? <span className="text-xs">Đã sao chép!</span> : <ClipboardIcon className="w-4 h-4" />}
         </button>
     )
 }
@@ -29,6 +29,10 @@ const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, su
   if (!isOpen) return null;
 
   const [imageStates, setImageStates] = useState<Record<number, { loading: boolean; url: string | null; error: string | null }>>({});
+  const [editedPrompts, setEditedPrompts] = useState<Record<number, string>>({});
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [currentEditText, setCurrentEditText] = useState('');
+
 
   const handleGenerateImage = async (index: number, prompt: string) => {
     setImageStates(prev => ({ ...prev, [index]: { loading: true, url: null, error: null } }));
@@ -39,6 +43,16 @@ const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, su
         const message = err instanceof Error ? err.message : 'An unknown error occurred';
         setImageStates(prev => ({ ...prev, [index]: { loading: false, url: null, error: message } }));
     }
+  };
+  
+  const handleStartEdit = (index: number, currentPrompt: string) => {
+    setEditingIndex(index);
+    setCurrentEditText(currentPrompt);
+  };
+  
+  const handleSaveEdit = (index: number) => {
+    setEditedPrompts(prev => ({ ...prev, [index]: currentEditText }));
+    setEditingIndex(null);
   };
 
 
@@ -57,6 +71,8 @@ const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, su
         <div className="p-6 space-y-6 overflow-y-auto">
           {suggestions.map((suggestion, index) => {
              const imageState = imageStates[index];
+             const isEditing = editingIndex === index;
+             const currentPrompt = editedPrompts[index] || suggestion.thumbnail_prompt;
              return (
             <div key={index} className="bg-brand-bg border border-brand-border rounded-lg p-4 space-y-3">
               <h3 className="text-md font-bold text-brand-secondary">Gói gợi ý #{index + 1}</h3>
@@ -64,33 +80,53 @@ const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, su
               <div className="relative">
                 <label className="text-xs font-semibold text-brand-text-secondary">TIÊU ĐỀ</label>
                 <p className="text-sm p-2 bg-brand-surface rounded-md mt-1 pr-10">{suggestion.title}</p>
-                <CopyButton textToCopy={suggestion.title} />
+                <CopyButton textToCopy={suggestion.title} className="absolute top-2 right-2" />
               </div>
 
               <div className="relative">
                 <label className="text-xs font-semibold text-brand-text-secondary">MÔ TẢ</label>
                 <p className="text-sm p-2 bg-brand-surface rounded-md mt-1 whitespace-pre-wrap pr-10">{suggestion.description}</p>
-                 <CopyButton textToCopy={suggestion.description} />
+                 <CopyButton textToCopy={suggestion.description} className="absolute top-2 right-2"/>
               </div>
 
               <div className="relative">
                 <label className="text-xs font-semibold text-brand-text-secondary">TAGS</label>
                 <p className="text-sm p-2 bg-brand-surface rounded-md mt-1 pr-10">{suggestion.tags}</p>
-                 <CopyButton textToCopy={suggestion.tags} />
+                 <CopyButton textToCopy={suggestion.tags} className="absolute top-2 right-2"/>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <div className="relative">
-                    <label className="text-xs font-semibold text-brand-text-secondary">VĂN BẢN TRÊN THUMBNAIL</label>
+                    <label className="text-xs font-semibold text-brand-text-secondary">Gợi ý Thumbnail</label>
                     <p className="text-sm p-2 bg-brand-surface rounded-md mt-1 h-full pr-10">{suggestion.thumbnail_text}</p>
-                    <CopyButton textToCopy={suggestion.thumbnail_text} />
+                    <CopyButton textToCopy={suggestion.thumbnail_text} className="absolute top-2 right-2"/>
                  </div>
                  <div className="relative">
                     <label className="text-xs font-semibold text-brand-text-secondary">PROMPT TẠO/CHỈNH SỬA THUMBNAIL</label>
                     <div className="text-sm p-2 bg-brand-surface rounded-md mt-1 h-full flex flex-col justify-between">
                          <div>
-                            <p className="pr-10">{suggestion.thumbnail_prompt}</p>
-                            <CopyButton textToCopy={suggestion.thumbnail_prompt} />
+                            {isEditing ? (
+                                <textarea
+                                    value={currentEditText}
+                                    onChange={(e) => setCurrentEditText(e.target.value)}
+                                    className="w-full bg-brand-bg border border-brand-border rounded-md p-2 text-brand-text-primary text-sm min-h-[100px] focus:ring-2 focus:ring-brand-primary"
+                                    autoFocus
+                                />
+                            ) : (
+                                <p className="pr-16">{currentPrompt}</p>
+                            )}
+                           <div className="absolute top-2 right-2 flex items-center space-x-1">
+                                {isEditing ? (
+                                    <button onClick={() => handleSaveEdit(index)} title="Lưu" className="p-1.5 text-brand-text-secondary hover:text-brand-success hover:bg-brand-bg rounded-md transition-colors">
+                                        <CheckIcon className="w-4 h-4" />
+                                    </button>
+                                ) : (
+                                    <button onClick={() => handleStartEdit(index, currentPrompt)} title="Chỉnh sửa" className="p-1.5 text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-bg rounded-md transition-colors">
+                                        <PencilIcon className="w-4 h-4" />
+                                    </button>
+                                )}
+                                <CopyButton textToCopy={currentPrompt} />
+                            </div>
                         </div>
                         
                         <div className="mt-2 space-y-2">
@@ -99,7 +135,7 @@ const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, su
                              )}
 
                              <button 
-                                onClick={() => handleGenerateImage(index, suggestion.thumbnail_prompt)}
+                                onClick={() => handleGenerateImage(index, currentPrompt)}
                                 disabled={imageState?.loading}
                                 className="w-full text-xs flex items-center justify-center bg-brand-primary/80 hover:bg-brand-primary disabled:bg-indigo-700 disabled:cursor-wait text-white font-bold py-2 px-2 rounded-md transition duration-200"
                             >

@@ -110,6 +110,5 @@ export interface Session {
     videoTitle: string;
     videoData: VideoData;
     analysisResult: AnalysisResult;
-    thumbnailPreview: string | null;
     seoSuggestions?: SeoSuggestion[] | null;
 }

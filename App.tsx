@@ -271,17 +271,13 @@ const App: React.FC = () => {
     }
   }, [processThumbnailFile]);
   
-  const handleSaveSession = useCallback(async (
-    resultToSave: AnalysisResult, 
-    thumbnailPreviewToSave: string | null
-  ) => {
+  const handleSaveSession = useCallback(async (resultToSave: AnalysisResult) => {
     if (!videoData.title) return;
     
     const newSessionData: Omit<Session, 'id' | 'user_id' | 'created_at'> = {
       videoTitle: videoData.title,
       videoData,
       analysisResult: resultToSave,
-      thumbnailPreview: thumbnailPreviewToSave,
       seoSuggestions: null,
     };
     
@@ -311,7 +307,7 @@ const App: React.FC = () => {
         });
 
         setAnalysisResult(result);
-        await handleSaveSession(result, thumbnailPreviewUrl);
+        await handleSaveSession(result);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
         setError(`Phân tích thất bại: ${errorMessage}`);
@@ -390,9 +386,8 @@ const App: React.FC = () => {
   const handleLoadSession = (session: Session) => {
       setVideoData(session.videoData);
       setAnalysisResult(session.analysisResult);
-      setThumbnailPreviewUrl(session.thumbnailPreview);
-      // We don't save full-res, so it will be null, which is fine. Re-fetch if analysis needed.
-      setFullResThumbnailUrl(session.thumbnailPreview); // Use preview for editing if full-res is not available
+      setThumbnailPreviewUrl(null);
+      setFullResThumbnailUrl(null);
       setSeoSuggestions(session.seoSuggestions || null);
       setCurrentSession(session);
       setError(null);

@@ -15,7 +15,7 @@ import ApiConfigModal from './components/ApiConfigModal';
 import LibraryModal from './components/LibraryModal';
 import SuggestionsModal from './components/SuggestionsModal';
 import { initialVideoData, placeholderVideoData } from './constants';
-import { fileToBase64, downloadTextFile } from './utils/fileUtils';
+import { fileToDataUrl, dataUrlToPureBase64, downloadTextFile } from './utils/fileUtils';
 import type { User } from '@supabase/supabase-js';
 
 const App: React.FC = () => {
@@ -173,24 +173,29 @@ const App: React.FC = () => {
     }
   }, []);
   
-  const handleSaveSession = useCallback(async (resultToSave: AnalysisResult) => {
+  const handleSaveSession = useCallback(async (
+    resultToSave: AnalysisResult, 
+    thumbnailDataUrl: string | null
+  ) => {
     if (!videoData.title) return;
     
     const newSessionData: Omit<Session, 'id' | 'user_id' | 'created_at'> = {
       videoTitle: videoData.title,
       videoData,
       analysisResult: resultToSave,
-      thumbnailPreview: null,
+      thumbnailPreview: thumbnailDataUrl,
       seoSuggestions: null,
     };
     
     try {
         const savedSession = await sessionService.saveSession(newSessionData, user);
         setCurrentSession(savedSession);
+        // Refresh the session list to include the new one
         const userSessions = await sessionService.getSessions(user);
         setSessions(userSessions);
     } catch (error) {
         console.error("Failed to save session:", error);
+        setError("Không thể lưu phiên làm việc.");
     }
   }, [videoData, user]);
 
@@ -209,23 +214,23 @@ const App: React.FC = () => {
     setCurrentSession(null);
     setIsLoading(true);
 
+    let thumbnailDataUrl: string | null = null;
     let pureBase64: string | null = null;
-    if (thumbnail.file) {
-      try {
-        pureBase64 = await fileToBase64(thumbnail.file);
-      } catch (err) {
-        setError('Lỗi xử lý ảnh thumbnail.');
-        setIsLoading(false);
-        return;
-      }
-    }
     
     try {
-        // For simplicity, we can hardcode or add a model selector later
+        if (thumbnail.file) {
+            thumbnailDataUrl = await fileToDataUrl(thumbnail.file);
+            pureBase64 = dataUrlToPureBase64(thumbnailDataUrl);
+        } else if (thumbnail.preview && thumbnail.preview.startsWith('data:')) {
+            // Already a data URL from a loaded session
+            thumbnailDataUrl = thumbnail.preview;
+            pureBase64 = dataUrlToPureBase64(thumbnailDataUrl);
+        }
+        
         const model = 'gemini-2.5-flash'; 
         const result = await analyzeVideoContent(videoData, pureBase64, activeGeminiKey, model);
         setAnalysisResult(result);
-        await handleSaveSession(result);
+        await handleSaveSession(result, thumbnailDataUrl);
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
         setError(`Phân tích thất bại: ${errorMessage}`);
@@ -257,7 +262,10 @@ const App: React.FC = () => {
 
           if (currentSession) {
               await sessionService.updateSessionSuggestions(currentSession.id, suggestions, user);
-              const updatedSessions = sessions.map(s => s.id === currentSession.id ? {...s, seoSuggestions: suggestions} : s);
+              // Update state for both the main session list and the current session
+              const updatedSession = { ...currentSession, seoSuggestions: suggestions };
+              setCurrentSession(updatedSession);
+              const updatedSessions = sessions.map(s => s.id === currentSession.id ? updatedSession : s);
               setSessions(updatedSessions);
           }
 
@@ -297,6 +305,7 @@ const App: React.FC = () => {
       setThumbnail({ file: null, preview: session.thumbnailPreview });
       setSeoSuggestions(session.seoSuggestions || null);
       setCurrentSession(session);
+      setError(null);
       setIsLibraryModalOpen(false);
   }
 

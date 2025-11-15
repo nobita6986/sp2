@@ -1,13 +1,12 @@
 
-export const fileToBase64 = (file: File): Promise<string> => {
+
+export const fileToDataUrl = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        // The result is a data URL: "data:image/jpeg;base64,LzlqLzRBQ...". We need to strip the prefix.
-        const base64String = reader.result.split(',')[1];
-        resolve(base64String);
+        resolve(reader.result);
       } else {
         reject(new Error('Failed to read file as a data URL.'));
       }
@@ -15,6 +14,12 @@ export const fileToBase64 = (file: File): Promise<string> => {
     reader.onerror = (error) => reject(error);
   });
 };
+
+export const dataUrlToPureBase64 = (dataUrl: string): string => {
+    // The result is a data URL: "data:image/jpeg;base64,LzlqLzRBQ...". We need to strip the prefix.
+    return dataUrl.split(',')[1];
+};
+
 
 export const downloadTextFile = (content: string, filename: string) => {
   const element = document.createElement("a");

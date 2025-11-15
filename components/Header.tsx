@@ -25,13 +25,13 @@ const Header: React.FC<HeaderProps> = ({ user, onLogin, onLogout, onShowApiModal
           </div>
           
           <div className="flex items-center space-x-2 sm:space-x-4">
-             <button onClick={onShowApiModal} className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-brand-text-secondary hover:bg-brand-bg hover:text-brand-text-primary transition-colors">
-                <KeyIcon className="w-5 h-5"/>
-                <span className="hidden md:inline">Cấu hình API</span>
-             </button>
              <button onClick={onShowLibraryModal} className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-brand-text-secondary hover:bg-brand-bg hover:text-brand-text-primary transition-colors">
                 <LibraryIcon className="w-5 h-5"/>
                 <span className="hidden md:inline">Thư viện</span>
+             </button>
+             <button onClick={onShowApiModal} className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-brand-text-secondary hover:bg-brand-bg hover:text-brand-text-primary transition-colors">
+                <KeyIcon className="w-5 h-5"/>
+                <span className="hidden md:inline">Cấu hình API</span>
              </button>
 
             <div className="w-px h-6 bg-brand-border"></div>

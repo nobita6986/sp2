@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import type { AnalysisResult, VideoData, ApiConfig, Session, SeoSuggestion, ApiKeyService, ApiKeyEntry, GeminiModel } from './types';
 import { analyzeVideoContent, getSeoSuggestions, editThumbnailImage } from './services/geminiService';
@@ -96,68 +97,88 @@ const App: React.FC = () => {
         await userSettingsService.updateUserSettings(user, { geminiModel: newModel });
     }, [user]);
 
-  // --- Smart API Key Fallback Logic ---
-  const findBestApiKey = useCallback((keys: ApiKeyEntry[]): ApiKeyEntry | undefined => {
-    const activeKey = keys.find(k => k.is_active);
-    if (activeKey && activeKey.status !== 'invalid') return activeKey;
-
-    const firstValidKey = keys.find(k => k.status === 'valid' && !k.is_active);
-    if (firstValidKey) return firstValidKey;
-
-    return keys.find(k => k.status === 'unchecked' && !k.is_active);
-  }, []);
-
-  const withApiFallback = useCallback(async <T,>(
-    service: ApiKeyService,
-    apiCall: (apiKey: string) => Promise<T>
-  ): Promise<T> => {
-    let keysToTry = [...apiConfig[service]];
-    let triedKeyIds = new Set<string>();
-
-    while(true) {
-        const keyToUse = findBestApiKey(keysToTry.filter(k => !triedKeyIds.has(k.id)));
+    const withApiFallback = useCallback(async <T,>(
+        service: ApiKeyService,
+        apiCall: (apiKey: string) => Promise<T>
+    ): Promise<T> => {
+        // 1. Get an ordered list of keys to try from the current state
+        const allKeys = [...apiConfig[service]];
+        const activeKey = allKeys.find(k => k.is_active && k.status !== 'invalid');
+        const validKeys = allKeys.filter(k => k.status === 'valid' && !k.is_active);
+        const uncheckedKeys = allKeys.filter(k => k.status === 'unchecked' && !k.is_active);
+    
+        // Use a Map to ensure each key is tried only once, maintaining priority order.
+        const uniqueKeys = [...new Map([
+            ...(activeKey ? [activeKey] : []), 
+            ...validKeys, 
+            ...uncheckedKeys
+        ].map(item => [item.id, item])).values()];
         
-        if (!keyToUse) {
+        const keysToTry = uniqueKeys;
+    
+        let successfulResult: T | null = null;
+        let successfulKey: ApiKeyEntry | null = null;
+        const failedKeyIds: string[] = [];
+    
+        // 2. Iterate through keys without updating state inside the loop
+        for (const keyToUse of keysToTry) {
+            try {
+                const result = await apiCall(keyToUse.api_key);
+                successfulResult = result;
+                successfulKey = keyToUse;
+                break; // Success! Stop trying keys.
+            } catch (error: any) {
+                const message = (error.message || '').toLowerCase();
+                const isKeyError = message.includes('api key') || message.includes('invalid') || message.includes('permission denied') || message.includes('forbidden');
+    
+                if (isKeyError) {
+                    console.warn(`API key for ${service} (${keyToUse.id}) failed. Marking as invalid and trying next one.`);
+                    failedKeyIds.push(keyToUse.id);
+                } else {
+                    // For non-key related errors, fail immediately.
+                    throw error;
+                }
+            }
+        }
+    
+        // 3. After the loop, perform a single, intelligent batch update to the database
+        const hasFailedKeys = failedKeyIds.length > 0;
+        let needsNewActiveKey = false;
+        if (successfulKey) {
+            // If the successful key wasn't active, we need to make it active.
+            needsNewActiveKey = !successfulKey.is_active;
+        }
+    
+        // Only perform DB operations if something actually changed (a key failed or a new one needs activation).
+        if (hasFailedKeys || needsNewActiveKey) {
+            const dbPromises: Promise<any>[] = [];
+    
+            // Batch-update all failed keys to 'invalid'
+            failedKeyIds.forEach(id => {
+                dbPromises.push(apiConfigService.updateApiKeyStatus(user, id, 'invalid'));
+            });
+    
+            // If we found a working key and it needs to be activated, set it.
+            // The service function handles deactivating other keys.
+            if (successfulKey && needsNewActiveKey) {
+                dbPromises.push(apiConfigService.setActiveApiKey(user, successfulKey.id, service));
+            }
+            
+            await Promise.all(dbPromises);
+            
+            // Then, fetch the fresh, correct state from the DB once. This is the only state update.
+            setApiConfig(await apiConfigService.getApiConfig(user));
+        }
+        
+        // 4. Return result or throw final error
+        if (successfulKey && successfulResult) {
+            return successfulResult;
+        } else {
             setIsApiModalOpen(true);
             throw new Error(`Tất cả API keys cho ${SERVICE_NAMES[service]} đều không hợp lệ. Vui lòng thêm một key mới trong phần Cấu hình API.`);
         }
-
-        try {
-            const result = await apiCall(keyToUse.api_key);
-
-            let configNeedsRefresh = false;
-            if (keyToUse.status === 'unchecked') {
-                await apiConfigService.updateApiKeyStatus(user, keyToUse.id, 'valid');
-                configNeedsRefresh = true;
-            }
-            if (!keyToUse.is_active) {
-                await apiConfigService.setActiveApiKey(user, keyToUse.id, service);
-                configNeedsRefresh = true;
-            }
-
-            if (configNeedsRefresh) {
-                setApiConfig(await apiConfigService.getApiConfig(user));
-            }
-            return result;
-
-        } catch (error: any) {
-            const message = (error.message || '').toLowerCase();
-            const isKeyError = message.includes('api key') || message.includes('invalid') || message.includes('permission denied');
-
-            if (isKeyError) {
-                console.warn(`API key for ${service} failed. Marking as invalid and trying next one.`);
-                await apiConfigService.updateApiKeyStatus(user, keyToUse.id, 'invalid');
-                setApiConfig(prev => ({
-                    ...prev,
-                    [service]: prev[service].map(k => k.id === keyToUse.id ? { ...k, status: 'invalid', is_active: false } : k)
-                }));
-                triedKeyIds.add(keyToUse.id);
-            } else {
-                throw error; // Rethrow non-key related errors
-            }
-        }
-    }
-  }, [apiConfig, user, findBestApiKey]);
+        
+    }, [apiConfig, user]);
 
 
   const processThumbnailFile = useCallback(async (file: File) => {

@@ -25,15 +25,48 @@ const getGradeColor = (grade: string) => {
     }
 }
 
+const subcriteriaTranslations: Record<string, string> = {
+  // Subcriteria
+  'Intent match': 'Mức độ khớp về ý định (hướng dẫn, thông tin, đánh giá...) giữa từ khóa, tiêu đề và mô tả.',
+  'Topic specificity': 'Chủ đề có đủ cụ thể không (có số liệu, đối tượng, phạm vi, bối cảnh...).',
+  'Main keyword presence': 'Từ khóa chính có xuất hiện ở các vị trí quan trọng như tiêu đề, mô tả, thẻ không.',
+  'Long-tail coverage': 'Mức độ bao phủ các từ khóa đuôi dài liên quan đến chủ đề chính.',
+  'No keyword stuffing': 'Kiểm tra mật độ từ khóa bất thường, đảm bảo tính tự nhiên.',
+  'Title length': 'Độ dài tiêu đề tối ưu để hiển thị tốt trên các thiết bị.',
+  'Keyword placement in title': 'Từ khóa chính có được đặt ở nửa đầu của tiêu đề hay không.',
+  'Title clarity': 'Tiêu đề có rõ ràng, nêu được lợi ích hoặc kết quả mong đợi không.',
+  'Clickbait penalty': 'Điểm trừ nếu tiêu đề hứa hẹn quá mức so với nội dung thực tế.',
+  'First 150 chars hook': '150 ký tự đầu tiên của mô tả có tóm tắt chủ đề và nêu lợi ích không.',
+  'Keyword usage in description': 'Từ khóa chính và các từ khóa liên quan được sử dụng phong phú và tự nhiên trong toàn bộ phần mô tả.',
+  'Detail level': 'Mô tả cung cấp đủ chi tiết về nội dung video, bao gồm các chủ đề chính (sai lầm, kiến thức, tư duy, chiến lược) và đối tượng mục tiêu.',
+  'Structure & formatting': 'Mô tả được cấu trúc tốt với các đoạn ngắt, dấu thời gian (chapters) rõ ràng và liên kết hợp lý.',
+  'Hashtag count': 'Số lượng hashtag được sử dụng có nằm trong khoảng khuyến nghị không.',
+  'Hashtag relevance': 'Các hashtag có liên quan chặt chẽ đến chủ đề chính của video không.',
+  'Tag usage': 'Các thẻ (tags) có bao gồm từ khóa chính và các biến thể liên quan không.',
+  'Language & metadata': 'Ngôn ngữ, khu vực và danh mục của video có được thiết lập phù hợp không.',
+  'Subtitles / Captions': 'Video có phụ đề chính xác, đặc biệt là phụ đề đã được chỉnh sửa.',
+  'Chapters': 'Video dài có được chia thành các phân đoạn (chapters) rõ ràng bằng timestamps không.',
+  'Channel topic fit': 'Chủ đề video có phù hợp với các chủ đề chính của kênh không.',
+  'Playlist / series usage': 'Video có được thêm vào các danh sách phát hoặc series liên quan không.',
+  'Internal linking': 'Mô tả hoặc bình luận ghim có chứa các liên kết đến video khác trên kênh không.',
+};
+
+
 const SubcriterionDisplay: React.FC<{ sub: Subcriterion }> = ({ sub }) => (
     <div className="ml-4 pl-4 border-l border-brand-border py-2">
-        <div className="flex justify-between items-center">
-            <p className="font-semibold text-brand-text-primary">{sub.label}</p>
-            <p className={`font-bold ${getGradeColor(sub.score.value > (sub.score.max * 0.7) ? 'good' : 'poor')}`}>
+        <div className="flex justify-between items-start">
+            <div className="pr-4">
+                <p className="font-semibold text-brand-text-primary">{sub.label}</p>
+                {subcriteriaTranslations[sub.label] && <p className="text-sm text-brand-text-secondary mt-1">{subcriteriaTranslations[sub.label]}</p>}
+            </div>
+            <p className={`font-bold flex-shrink-0 ${getGradeColor(sub.score.value > (sub.score.max * 0.7) ? 'good' : 'poor')}`}>
                 {sub.score.value}/{sub.score.max}
             </p>
         </div>
-        <p className="text-sm text-brand-text-secondary mt-1">{sub.explanation}</p>
+        
+        {/* The AI's specific explanation */}
+        <p className="text-sm text-brand-text-secondary mt-2 italic">"{sub.explanation}"</p>
+
         {sub.suggestions && sub.suggestions.length > 0 && (
             <div className="mt-2 text-xs text-green-300 bg-green-900/30 p-2 rounded-md">
                 <p className="font-bold">Gợi ý:</p>

@@ -89,13 +89,14 @@ export const analyzeVideoContent = async (videoData: VideoData, thumbnailBase64:
   const ai = new GoogleGenAI({ apiKey: config.geminiKey });
 
   const prompt = `
-    Act as an expert YouTube SEO analyst. Your name is ClearCue.
-    Your task is to analyze the provided YouTube video data based STRICTLY on the following JSON scoring schema.
+    Act as a deterministic, rule-based YouTube SEO scoring engine. Your name is ClearCue.
+    Your primary function is to analyze the provided YouTube video data and calculate a score based STRICTLY on the rules defined in the SCORING SCHEMA.
+    You MUST NOT be creative or subjective. Your output must be consistent for the same input. Follow the logic in the "scoring_bins" for each criterion precisely.
     You must return a single, valid JSON object that follows the structure of the provided "OUTPUT EXAMPLE".
     All text (summaries, explanations, suggestions, etc.) must be in Vietnamese.
 
     ---
-    SCORING SCHEMA (Use this as your rulebook):
+    SCORING SCHEMA (This is your strict rulebook. Adhere to it precisely.):
     ${JSON.stringify(scoringSchema, null, 2)}
     ---
 
@@ -136,6 +137,7 @@ export const analyzeVideoContent = async (videoData: VideoData, thumbnailBase64:
     config: {
         responseMimeType: "application/json",
         responseSchema: responseSchema,
+        temperature: 0.2, // Make the output more deterministic and less "creative"
     }
   });
 

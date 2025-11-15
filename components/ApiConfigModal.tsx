@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import type { ApiConfig, ApiKeyEntry, ApiKeyService, ApiKeyStatus } from '../types';
-import { KeyIcon, XMarkIcon, TrashIcon, CheckCircleIcon, ExclamationTriangleIcon } from './icons/UtilityIcons';
+import { KeyIcon, XMarkIcon, TrashIcon } from './icons/UtilityIcons';
 import * as apiValidationService from '../services/apiValidationService';
 import * as apiConfigService from '../services/apiConfigService';
+import { SERVICE_NAMES } from '../constants';
 import type { User } from '@supabase/supabase-js';
 
 interface ApiConfigModalProps {
@@ -11,12 +12,6 @@ interface ApiConfigModalProps {
   onClose: () => void;
   onConfigChange: (newConfig: ApiConfig) => void;
 }
-
-const SERVICE_NAMES: Record<ApiKeyService, string> = {
-    gemini: 'Google Gemini API',
-    youtube: 'YouTube Data API',
-    youtubeTranscript: 'YouTube Transcript API'
-};
 
 const KeyStatusBadge: React.FC<{ status: ApiKeyStatus }> = ({ status }) => {
     const styles: Record<ApiKeyStatus, string> = {
@@ -122,6 +117,11 @@ const ApiConfigModal: React.FC<ApiConfigModalProps> = ({ initialConfig, user, on
     useEffect(() => {
         onConfigChange(config);
     }, [config, onConfigChange]);
+    
+    useEffect(() => {
+        setConfig(initialConfig);
+    }, [initialConfig]);
+
 
     const handleAddKey = async (service: ApiKeyService, apiKey: string) => {
         const newKeyEntry = await apiConfigService.addApiKey(user, { service, api_key: apiKey });
@@ -171,6 +171,8 @@ const ApiConfigModal: React.FC<ApiConfigModalProps> = ({ initialConfig, user, on
             [service]: config[service].map(key => ({
                 ...key,
                 is_active: key.id === keyId,
+                 // Also reflect the status update optimistically
+                status: key.id === keyId ? 'valid' as ApiKeyStatus : key.status,
             })),
         };
         setConfig(optimisticConfig);

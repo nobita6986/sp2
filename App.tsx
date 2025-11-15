@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import type { AnalysisResult, VideoData, ApiConfig, Session, SeoSuggestion } from './types';
+import type { AnalysisResult, VideoData, ApiConfig, Session, SeoSuggestion, ApiKeyService, ApiKeyEntry } from './types';
 import { analyzeVideoContent, getSeoSuggestions } from './services/geminiService';
 import { fetchVideoMetadata } from './services/youtubeService';
 import { fetchTranscript } from './services/transcriptService';
@@ -14,7 +14,7 @@ import ResultsSection from './components/ResultsSection';
 import ApiConfigModal from './components/ApiConfigModal';
 import LibraryModal from './components/LibraryModal';
 import SuggestionsModal from './components/SuggestionsModal';
-import { initialVideoData, placeholderVideoData } from './constants';
+import { initialVideoData, placeholderVideoData, SERVICE_NAMES } from './constants';
 import { fileToDataUrl, dataUrlToPureBase64, downloadTextFile } from './utils/fileUtils';
 import type { User } from '@supabase/supabase-js';
 
@@ -87,6 +87,70 @@ const App: React.FC = () => {
     setVideoData(prev => ({ ...prev, [name]: value }));
   }, []);
   
+  // --- Smart API Key Fallback Logic ---
+  const findBestApiKey = useCallback((keys: ApiKeyEntry[]): ApiKeyEntry | undefined => {
+    const activeKey = keys.find(k => k.is_active);
+    if (activeKey && activeKey.status !== 'invalid') return activeKey;
+
+    const firstValidKey = keys.find(k => k.status === 'valid' && !k.is_active);
+    if (firstValidKey) return firstValidKey;
+
+    return keys.find(k => k.status === 'unchecked' && !k.is_active);
+  }, []);
+
+  const withApiFallback = useCallback(async <T,>(
+    service: ApiKeyService,
+    apiCall: (apiKey: string) => Promise<T>
+  ): Promise<T> => {
+    let keysToTry = [...apiConfig[service]];
+    let triedKeyIds = new Set<string>();
+
+    while(true) {
+        const keyToUse = findBestApiKey(keysToTry.filter(k => !triedKeyIds.has(k.id)));
+        
+        if (!keyToUse) {
+            setIsApiModalOpen(true);
+            throw new Error(`Tất cả API keys cho ${SERVICE_NAMES[service]} đều không hợp lệ. Vui lòng thêm một key mới trong phần Cấu hình API.`);
+        }
+
+        try {
+            const result = await apiCall(keyToUse.api_key);
+
+            let configNeedsRefresh = false;
+            if (keyToUse.status === 'unchecked') {
+                await apiConfigService.updateApiKeyStatus(user, keyToUse.id, 'valid');
+                configNeedsRefresh = true;
+            }
+            if (!keyToUse.is_active) {
+                await apiConfigService.setActiveApiKey(user, keyToUse.id, service);
+                configNeedsRefresh = true;
+            }
+
+            if (configNeedsRefresh) {
+                setApiConfig(await apiConfigService.getApiConfig(user));
+            }
+            return result;
+
+        } catch (error: any) {
+            const message = (error.message || '').toLowerCase();
+            const isKeyError = message.includes('api key') || message.includes('invalid') || message.includes('permission denied');
+
+            if (isKeyError) {
+                console.warn(`API key for ${service} failed. Marking as invalid and trying next one.`);
+                await apiConfigService.updateApiKeyStatus(user, keyToUse.id, 'invalid');
+                setApiConfig(prev => ({
+                    ...prev,
+                    [service]: prev[service].map(k => k.id === keyToUse.id ? { ...k, status: 'invalid', is_active: false } : k)
+                }));
+                triedKeyIds.add(keyToUse.id);
+            } else {
+                throw error; // Rethrow non-key related errors
+            }
+        }
+    }
+  }, [apiConfig, user, findBestApiKey]);
+
+
   const handleFetchMetadata = useCallback(async () => {
     const url = videoData.youtubeLink;
     if (!url) {
@@ -100,43 +164,33 @@ const App: React.FC = () => {
       return;
     }
     
-    const activeYoutubeKey = apiConfig.youtube.find(k => k.is_active)?.api_key;
-    if (!activeYoutubeKey) {
-        setError("Vui lòng kích hoạt một YouTube Data API Key trong phần Cấu hình API.");
-        setIsApiModalOpen(true);
-        return;
-    }
-
     setIsFetchingMeta(true);
     setError(null);
+
     try {
-        const metadata = await fetchVideoMetadata(videoId, activeYoutubeKey);
+        const metadata = await withApiFallback(
+            'youtube', 
+            (apiKey) => fetchVideoMetadata(videoId, apiKey)
+        );
         const { thumbnailUrl, ...videoMeta } = metadata;
 
-        setVideoData(prev => ({
-            ...prev,
-            ...videoMeta,
-            youtubeLink: url
-        }));
+        setVideoData(prev => ({ ...prev, ...videoMeta, youtubeLink: url }));
 
         if (thumbnailUrl) {
           const imageResponse = await fetch(thumbnailUrl);
-          if (!imageResponse.ok) {
-            throw new Error('Không thể tải thumbnail.');
-          }
+          if (!imageResponse.ok) throw new Error('Không thể tải thumbnail.');
           const imageBlob = await imageResponse.blob();
           const thumbnailFile = new File([imageBlob], 'thumbnail.jpg', { type: imageBlob.type });
           const preview = URL.createObjectURL(thumbnailFile);
           setThumbnail({ file: thumbnailFile, preview: preview });
         }
-
     } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
         setError(`Lỗi lấy metadata: ${errorMessage}`);
     } finally {
         setIsFetchingMeta(false);
     }
-  }, [apiConfig.youtube, videoData.youtubeLink]);
+  }, [videoData.youtubeLink, withApiFallback]);
 
   const handleFetchTranscript = useCallback(async () => {
     const url = videoData.youtubeLink;
@@ -149,20 +203,22 @@ const App: React.FC = () => {
       setError("Link YouTube không hợp lệ.");
       return;
     }
-    const activeTranscriptKey = apiConfig.youtubeTranscript.find(k => k.is_active)?.api_key || '6918b060522a1fa0d931dad6'; // Fallback to default
     
     setIsFetchingTranscript(true);
     setError(null);
     try {
-      const transcriptText = await fetchTranscript(videoId, activeTranscriptKey);
-      setVideoData(prev => ({ ...prev, transcript: transcriptText }));
+        const transcriptText = await withApiFallback(
+            'youtubeTranscript', 
+            (apiKey) => fetchTranscript(videoId, apiKey)
+        );
+        setVideoData(prev => ({ ...prev, transcript: transcriptText }));
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
       setError(`Lỗi lấy transcript: ${errorMessage}`);
     } finally {
       setIsFetchingTranscript(false);
     }
-  }, [apiConfig.youtubeTranscript, videoData.youtubeLink]);
+  }, [videoData.youtubeLink, withApiFallback]);
 
 
   const handleThumbnailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,7 +246,6 @@ const App: React.FC = () => {
     try {
         const savedSession = await sessionService.saveSession(newSessionData, user);
         setCurrentSession(savedSession);
-        // Refresh the session list to include the new one
         const userSessions = await sessionService.getSessions(user);
         setSessions(userSessions);
     } catch (error) {
@@ -201,13 +256,6 @@ const App: React.FC = () => {
 
 
   const handleAnalyze = async () => {
-    const activeGeminiKey = apiConfig.gemini.find(k => k.is_active)?.api_key;
-    if (!activeGeminiKey) {
-        setError("Vui lòng kích hoạt một Gemini API Key trong phần Cấu hình API.");
-        setIsApiModalOpen(true);
-        return;
-    }
-    
     setError(null);
     setAnalysisResult(null);
     setSeoSuggestions(null);
@@ -215,20 +263,20 @@ const App: React.FC = () => {
     setIsLoading(true);
 
     let thumbnailDataUrl: string | null = null;
-    let pureBase64: string | null = null;
     
     try {
         if (thumbnail.file) {
             thumbnailDataUrl = await fileToDataUrl(thumbnail.file);
-            pureBase64 = dataUrlToPureBase64(thumbnailDataUrl);
         } else if (thumbnail.preview && thumbnail.preview.startsWith('data:')) {
-            // Already a data URL from a loaded session
             thumbnailDataUrl = thumbnail.preview;
-            pureBase64 = dataUrlToPureBase64(thumbnailDataUrl);
         }
-        
-        const model = 'gemini-2.5-flash'; 
-        const result = await analyzeVideoContent(videoData, pureBase64, activeGeminiKey, model);
+
+        const result = await withApiFallback('gemini', async (apiKey) => {
+            const pureBase64 = thumbnailDataUrl ? dataUrlToPureBase64(thumbnailDataUrl) : null;
+            const model = 'gemini-2.5-flash';
+            return analyzeVideoContent(videoData, pureBase64, apiKey, model);
+        });
+
         setAnalysisResult(result);
         await handleSaveSession(result, thumbnailDataUrl);
     } catch (err: unknown) {
@@ -245,24 +293,19 @@ const App: React.FC = () => {
           return;
       }
       
-      const activeGeminiKey = apiConfig.gemini.find(k => k.is_active)?.api_key;
-      if (!activeGeminiKey) {
-          setError("Vui lòng kích hoạt một Gemini API Key trong phần Cấu hình API.");
-          setIsApiModalOpen(true);
-          return;
-      }
-
       setIsSuggestionsLoading(true);
       setError(null);
 
       try {
-          const model = 'gemini-2.5-flash';
-          const suggestions = await getSeoSuggestions(videoData, analysisResult, activeGeminiKey, model);
+          const suggestions = await withApiFallback('gemini', (apiKey) => {
+              const model = 'gemini-2.5-flash';
+              return getSeoSuggestions(videoData, analysisResult, apiKey, model);
+          });
+          
           setSeoSuggestions(suggestions);
 
           if (currentSession) {
               await sessionService.updateSessionSuggestions(currentSession.id, suggestions, user);
-              // Update state for both the main session list and the current session
               const updatedSession = { ...currentSession, seoSuggestions: suggestions };
               setCurrentSession(updatedSession);
               const updatedSessions = sessions.map(s => s.id === currentSession.id ? updatedSession : s);

@@ -1,4 +1,4 @@
-import type { VideoData, AnalysisResult } from './types';
+import type { VideoData, ApiKeyService } from './types';
 
 export const initialVideoData: VideoData = {
   title: "",
@@ -14,6 +14,12 @@ export const placeholderVideoData: VideoData = {
   tags: "Mauna Loa Eruption,Hawaii Volcano,Volcano Documentary,Lava Flow",
   transcript: "00:00:15,900 --> 00:00:18,066\nDON'T LOOK BACK OR YOU'LL PASS THROUGH THE BLIND\n\n00:00:18,066 --> 00:00:20,966\nTHE SOUND OF WATER",
   youtubeLink: "https://www.youtube.com/watch?v=FAU4s3wDsoI",
+};
+
+export const SERVICE_NAMES: Record<ApiKeyService, string> = {
+    gemini: 'Google Gemini API',
+    youtube: 'YouTube Data API',
+    youtubeTranscript: 'YouTube Transcript API'
 };
 
 

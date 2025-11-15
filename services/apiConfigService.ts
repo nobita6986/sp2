@@ -11,17 +11,17 @@ const DEFAULT_CONFIG: ApiConfig = {
 };
 
 const groupKeysByService = (keys: ApiKeyEntry[]): ApiConfig => {
-    const config: ApiConfig = { ...DEFAULT_CONFIG };
+    const config: ApiConfig = { 
+        gemini: [],
+        youtube: [],
+        youtubeTranscript: [],
+     };
     keys.forEach(key => {
         if (config[key.service]) {
             config[key.service].push(key);
         }
     });
     return config;
-};
-
-const flattenConfig = (config: ApiConfig): ApiKeyEntry[] => {
-    return [...config.gemini, ...config.youtube, ...config.youtubeTranscript];
 };
 
 // --- Local Storage Functions ---
@@ -112,7 +112,7 @@ export const updateApiKeyStatus = async (user: User | null, keyId: string, statu
      if (user) {
         const { error } = await supabase
             .from('api_keys')
-            .update({ status })
+            .update({ status: status })
             .match({ id: keyId, user_id: user.id });
          if (error) {
             console.error('Error updating key status in Supabase:', error);
@@ -143,10 +143,10 @@ export const setActiveApiKey = async (user: User | null, keyId: string, service:
             throw deactivateError;
         }
 
-        // Step 2: Activate the selected key
+        // Step 2: Activate the selected key and mark it as 'valid' since it's being trusted
         const { error: activateError } = await supabase
             .from('api_keys')
-            .update({ is_active: true })
+            .update({ is_active: true, status: 'valid' })
             .match({ user_id: user.id, id: keyId });
         
         if (activateError) {
@@ -157,10 +157,11 @@ export const setActiveApiKey = async (user: User | null, keyId: string, service:
         let config = getLocalConfig();
         // Deactivate all for the service
         config[service].forEach(key => key.is_active = false);
-        // Activate the selected one
+        // Activate the selected one and mark as valid
         const keyToActivate = config[service].find(key => key.id === keyId);
         if (keyToActivate) {
             keyToActivate.is_active = true;
+            keyToActivate.status = 'valid';
         }
         saveLocalConfig(config);
     }

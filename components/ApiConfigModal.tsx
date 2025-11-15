@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import type { ApiConfig, ApiKeyEntry, ApiKeyService, ApiKeyStatus } from '../types';
+import type { ApiConfig, ApiKeyEntry, ApiKeyService, ApiKeyStatus, GeminiModel } from '../types';
 import { KeyIcon, XMarkIcon, TrashIcon, GeminiIcon } from './icons/UtilityIcons';
 import { YoutubeIcon } from './icons/YoutubeIcon';
 import * as apiValidationService from '../services/apiValidationService';
 import * as apiConfigService from '../services/apiConfigService';
-import { SERVICE_NAMES } from '../constants';
+import { SERVICE_NAMES, AVAILABLE_GEMINI_MODELS } from '../constants';
 import type { User } from '@supabase/supabase-js';
 
 interface ApiConfigModalProps {
   initialConfig: ApiConfig;
   user: User | null;
+  geminiModel: GeminiModel;
+  onModelChange: (model: GeminiModel) => void;
   onClose: () => void;
   onConfigChange: (newConfig: ApiConfig) => void;
 }
@@ -71,12 +73,14 @@ const serviceIcons: Record<ApiKeyService, React.FC<React.SVGProps<SVGSVGElement>
 const ApiServiceSection: React.FC<{
     service: ApiKeyService;
     keys: ApiKeyEntry[];
+    geminiModel?: GeminiModel;
+    onModelChange?: (model: GeminiModel) => void;
     onKeyAdded: (service: ApiKeyService, key: string) => void;
     onKeyDeleted: (id: string) => void;
     onKeyTested: (id: string, service: ApiKeyService, key: string) => void;
     onKeySetActive: (id: string, service: ApiKeyService) => void;
     testingKeyState: Record<string, boolean>;
-}> = ({ service, keys, onKeyAdded, onKeyDeleted, onKeyTested, onKeySetActive, testingKeyState }) => {
+}> = ({ service, keys, geminiModel, onModelChange, onKeyAdded, onKeyDeleted, onKeyTested, onKeySetActive, testingKeyState }) => {
     const [newKey, setNewKey] = useState('');
     const ServiceIcon = serviceIcons[service];
 
@@ -93,6 +97,25 @@ const ApiServiceSection: React.FC<{
                 <h3 className="text-md font-semibold text-brand-text-primary">{SERVICE_NAMES[service]}</h3>
                 {ServiceIcon && <ServiceIcon />}
             </div>
+
+            {service === 'gemini' && onModelChange && (
+                 <div className="mb-4">
+                    <label htmlFor="gemini-model-select" className="text-sm text-brand-text-secondary mb-1 block">
+                        Model AI (Mô hình)
+                    </label>
+                    <select
+                        id="gemini-model-select"
+                        value={geminiModel}
+                        onChange={(e) => onModelChange(e.target.value as GeminiModel)}
+                        className="w-full bg-brand-bg border border-brand-border rounded-md px-3 py-2 text-brand-text-primary focus:ring-2 focus:ring-brand-primary"
+                    >
+                        {AVAILABLE_GEMINI_MODELS.map(model => (
+                            <option key={model.id} value={model.id}>{model.name}</option>
+                        ))}
+                    </select>
+                 </div>
+            )}
+
             <div className="space-y-2 mb-3">
                 {keys.length > 0 ? (
                     keys.map(key => <ApiKeyRow 
@@ -122,7 +145,7 @@ const ApiServiceSection: React.FC<{
 };
 
 
-const ApiConfigModal: React.FC<ApiConfigModalProps> = ({ initialConfig, user, onClose, onConfigChange }) => {
+const ApiConfigModal: React.FC<ApiConfigModalProps> = ({ initialConfig, user, geminiModel, onModelChange, onClose, onConfigChange }) => {
     const [config, setConfig] = useState<ApiConfig>(initialConfig);
     const [testingKeyState, setTestingKeyState] = useState<Record<string, boolean>>({}); // { [keyId]: isLoading }
 
@@ -218,6 +241,8 @@ const ApiConfigModal: React.FC<ApiConfigModalProps> = ({ initialConfig, user, on
                         key={service}
                         service={service}
                         keys={config[service]}
+                        geminiModel={geminiModel}
+                        onModelChange={onModelChange}
                         onKeyAdded={handleAddKey}
                         onKeyDeleted={handleDeleteKey}
                         onKeyTested={handleTestKey}

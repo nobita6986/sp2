@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import type { AnalysisResult, VideoData, ApiConfig, Session, SeoSuggestion, ApiKeyService, ApiKeyEntry } from './types';
+import type { AnalysisResult, VideoData, ApiConfig, Session, SeoSuggestion, ApiKeyService, ApiKeyEntry, GeminiModel } from './types';
 import { analyzeVideoContent, getSeoSuggestions } from './services/geminiService';
 import { fetchVideoMetadata } from './services/youtubeService';
 import { fetchTranscript } from './services/transcriptService';
@@ -7,6 +7,7 @@ import { extractVideoId } from './utils/youtubeUtils';
 import { supabase } from './services/supabaseClient';
 import * as sessionService from './services/sessionService';
 import * as apiConfigService from './services/apiConfigService';
+import * as userSettingsService from './services/userSettingsService';
 import Header from './components/Header';
 import InputSection from './components/InputSection';
 import ThumbnailSection from './components/ThumbnailSection';
@@ -14,7 +15,7 @@ import ResultsSection from './components/ResultsSection';
 import ApiConfigModal from './components/ApiConfigModal';
 import LibraryModal from './components/LibraryModal';
 import SuggestionsModal from './components/SuggestionsModal';
-import { initialVideoData, placeholderVideoData, SERVICE_NAMES } from './constants';
+import { initialVideoData, placeholderVideoData, SERVICE_NAMES, DEFAULT_GEMINI_MODEL } from './constants';
 import { fileToFullResDataUrl, resizeImageToDataUrl, dataUrlToPureBase64, downloadTextFile } from './utils/fileUtils';
 import type { User } from '@supabase/supabase-js';
 
@@ -47,16 +48,19 @@ const App: React.FC = () => {
       youtube: [],
       youtubeTranscript: [],
   });
+  const [geminiModel, setGeminiModel] = useState<GeminiModel>(DEFAULT_GEMINI_MODEL);
 
   // Supabase Auth Effect
   useEffect(() => {
     const loadDataForUser = async (currentUser: User | null) => {
-        const [userSessions, config] = await Promise.all([
+        const [userSessions, config, settings] = await Promise.all([
             sessionService.getSessions(currentUser),
-            apiConfigService.getApiConfig(currentUser)
+            apiConfigService.getApiConfig(currentUser),
+            userSettingsService.getUserSettings(currentUser)
         ]);
         setSessions(userSessions);
         setApiConfig(config);
+        setGeminiModel(settings.geminiModel);
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -87,6 +91,11 @@ const App: React.FC = () => {
     setVideoData(prev => ({ ...prev, [name]: value }));
   }, []);
   
+    const handleModelChange = useCallback(async (newModel: GeminiModel) => {
+        setGeminiModel(newModel);
+        await userSettingsService.updateUserSettings(user, { geminiModel: newModel });
+    }, [user]);
+
   // --- Smart API Key Fallback Logic ---
   const findBestApiKey = useCallback((keys: ApiKeyEntry[]): ApiKeyEntry | undefined => {
     const activeKey = keys.find(k => k.is_active);
@@ -277,8 +286,7 @@ const App: React.FC = () => {
     try {
         const result = await withApiFallback('gemini', async (apiKey) => {
             const pureBase64 = fullResThumbnailUrl ? dataUrlToPureBase64(fullResThumbnailUrl) : null;
-            const model = 'gemini-2.5-flash';
-            return analyzeVideoContent(videoData, pureBase64, apiKey, model);
+            return analyzeVideoContent(videoData, pureBase64, apiKey, geminiModel);
         });
 
         setAnalysisResult(result);
@@ -302,8 +310,7 @@ const App: React.FC = () => {
 
       try {
           const suggestions = await withApiFallback('gemini', (apiKey) => {
-              const model = 'gemini-2.5-flash';
-              return getSeoSuggestions(videoData, analysisResult, apiKey, model);
+              return getSeoSuggestions(videoData, analysisResult, apiKey, geminiModel);
           });
           
           setSeoSuggestions(suggestions);
@@ -410,6 +417,8 @@ const App: React.FC = () => {
           <ApiConfigModal 
             initialConfig={apiConfig}
             user={user}
+            geminiModel={geminiModel}
+            onModelChange={handleModelChange}
             onClose={() => setIsApiModalOpen(false)}
             onConfigChange={(newConfig) => {
                 setApiConfig(newConfig);

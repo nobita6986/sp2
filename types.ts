@@ -22,6 +22,14 @@ export interface ApiConfig {
 }
 // --- END NEW API KEY MANAGEMENT SCHEMA ---
 
+// --- NEW USER SETTINGS SCHEMA ---
+export type GeminiModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
+
+export interface UserSettings {
+    geminiModel: GeminiModel;
+}
+// --- END NEW USER SETTINGS SCHEMA ---
+
 
 export interface VideoData {
   title: string;

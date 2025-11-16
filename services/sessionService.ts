@@ -35,6 +35,19 @@ const sanitizeForPostgres = (data: any): any => {
     return data;
 };
 
+// Maps DB result (snake_case) to frontend Session object (camelCase)
+const sessionFromDb = (dbData: any): Session => {
+    return {
+        id: dbData.id,
+        user_id: dbData.user_id,
+        created_at: dbData.created_at,
+        videoTitle: dbData.video_title,
+        videoData: dbData.video_data,
+        analysisResult: dbData.analysis_result,
+        seoSuggestions: dbData.seo_suggestions,
+    };
+};
+
 
 // --- Local Storage Functions ---
 
@@ -69,7 +82,7 @@ export const getSessions = async (user: User | null): Promise<Session[]> => {
             console.error('Error fetching Supabase sessions:', error);
             return [];
         }
-        return data as Session[];
+        return data.map(sessionFromDb);
     } else {
         return getLocalSessions();
     }
@@ -83,9 +96,18 @@ export const saveSession = async (
     const sanitizedData = sanitizeForPostgres(sessionData);
 
     if (user) {
+        // Explicitly map from camelCase (app) to snake_case (db)
+        const dbPayload = {
+            user_id: user.id,
+            video_title: sanitizedData.videoTitle,
+            video_data: sanitizedData.videoData,
+            analysis_result: sanitizedData.analysisResult,
+            seo_suggestions: sanitizedData.seoSuggestions,
+        };
+
         const { data, error } = await supabase
             .from('sessions')
-            .insert({ ...sanitizedData, user_id: user.id })
+            .insert(dbPayload)
             .select()
             .single();
 
@@ -93,7 +115,7 @@ export const saveSession = async (
             console.error('Error saving session to Supabase:', error);
             throw error;
         }
-        return data as Session;
+        return sessionFromDb(data);
     } else {
         const sessions = getLocalSessions();
         const newSession: Session = {

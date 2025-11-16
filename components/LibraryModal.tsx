@@ -37,14 +37,14 @@ const LibraryModal: React.FC<LibraryModalProps> = ({ sessions, isOpen, onClose, 
           ) : (
             <ul className="divide-y divide-brand-border">
               {sessions.map((session) => (
-                <li key={session.id} className="py-3 flex items-center justify-between hover:bg-brand-bg/50 rounded-md px-2 -mx-2">
-                  <div>
-                    <p className="font-medium text-brand-text-primary truncate max-w-md">{session.videoTitle}</p>
+                <li key={session.id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 hover:bg-brand-bg/50 rounded-md px-2 -mx-2">
+                  <div className="w-full sm:w-auto">
+                    <p className="font-medium text-brand-text-primary break-words">{session.videoTitle}</p>
                     <p className="text-xs text-brand-text-secondary">
                       Lưu lúc: {new Date(session.created_at).toLocaleString('vi-VN')}
                     </p>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-shrink-0 self-end sm:self-auto">
                     <button
                       onClick={() => onLoadSession(session)}
                       className="px-3 py-1 text-xs font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-md"

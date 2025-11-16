@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import type { SeoSuggestion } from '../types';
 import { XMarkIcon, LightBulbIcon, ClipboardIcon, CameraIcon, PencilIcon, CheckIcon } from './icons/UtilityIcons';
@@ -151,10 +152,10 @@ const SuggestionsModal: React.FC<SuggestionsModalProps> = ({ isOpen, onClose, su
             </div>
           )})}
         </div>
-         <div className="flex justify-between items-center p-4 bg-brand-bg rounded-b-lg border-t border-brand-border sticky bottom-0">
-            <p className="text-xs text-brand-text-secondary">Chỉnh sửa ảnh thumbnail gốc bằng AI.</p>
-            <div>
-              <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-brand-text-primary bg-brand-surface hover:bg-gray-700 border border-brand-border rounded-md mr-2">Đóng</button>
+         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-4 bg-brand-bg rounded-b-lg border-t border-brand-border sticky bottom-0">
+            <p className="text-xs text-brand-text-secondary text-center sm:text-left">Chỉnh sửa ảnh thumbnail gốc bằng AI.</p>
+            <div className="flex items-center space-x-2">
+              <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-brand-text-primary bg-brand-surface hover:bg-gray-700 border border-brand-border rounded-md">Đóng</button>
               <button onClick={onDownload} className="px-4 py-2 text-sm font-medium text-white bg-brand-primary hover:bg-brand-primary-hover rounded-md">Tải về (.txt)</button>
             </div>
         </div>

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import type { AnalysisResult, Category, Subcriterion } from '../types';
 import LoadingSpinner from './LoadingSpinner';
@@ -172,13 +173,13 @@ const ResultsSection: React.FC<ResultsSectionProps> = ({ result, isLoading, erro
     <div className="bg-brand-surface border border-brand-border rounded-lg p-6 space-y-8">
       <div>
         <h2 className="text-xl font-bold text-brand-text-primary mb-4">3. Kết quả phân tích SEO</h2>
-        <div className="flex items-center p-4 rounded-lg bg-brand-bg">
-            <div className="text-center mr-6 flex-shrink-0">
-              <p className={`text-6xl font-bold ${getGradeColor(total_score.grade)}`}>{total_score.value}</p>
+        <div className="flex flex-col sm:flex-row items-center p-4 rounded-lg bg-brand-bg text-center sm:text-left">
+            <div className="sm:mr-6 flex-shrink-0 mb-4 sm:mb-0">
+              <p className={`text-5xl sm:text-6xl font-bold ${getGradeColor(total_score.grade)}`}>{total_score.value}</p>
               <p className="text-brand-text-secondary">trên {total_score.max}</p>
               <p className={`text-sm font-semibold capitalize mt-1 ${getGradeColor(total_score.grade)}`}>{total_score.grade.replace('_', ' ')}</p>
            </div>
-           <div className="border-l border-brand-border pl-6">
+           <div className="sm:border-l border-brand-border sm:pl-6">
               <h3 className="text-lg font-semibold text-brand-text-primary">Tổng quan</h3>
               <p className="text-brand-text-secondary">{total_score.summary}</p>
            </div>

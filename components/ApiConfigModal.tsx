@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import type { ApiConfig, ApiKeyEntry, ApiKeyService, ApiKeyStatus, GeminiModel } from '../types';
 import { KeyIcon, XMarkIcon, TrashIcon, GeminiIcon } from './icons/UtilityIcons';
@@ -39,14 +40,14 @@ const ApiKeyRow: React.FC<{
     isTesting: boolean;
 }> = ({ apiKey, onDelete, onTest, onSetActive, isTesting }) => {
     return (
-        <div className="flex items-center justify-between p-2 bg-brand-bg rounded-md">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 bg-brand-bg rounded-md">
             <div className="flex items-center space-x-3 flex-1 min-w-0">
                 <KeyStatusBadge status={apiKey.status} />
                 <p className="text-sm text-brand-text-secondary font-mono truncate">
                     {`...${apiKey.api_key.slice(-6)}`}
                 </p>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 self-end sm:self-center">
                 {apiKey.is_active ? (
                     <span className="px-2 py-1 text-xs font-bold text-green-200 bg-green-800/50 rounded-md">Đang hoạt động</span>
                 ) : (

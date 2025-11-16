@@ -57,7 +57,7 @@ const InputSection: React.FC<InputSectionProps> = ({ videoData, placeholders, on
                 <span className="flex items-center justify-center bg-brand-secondary text-brand-bg font-bold rounded-full h-5 w-5 text-xs mr-2">1</span>
                 Link video YouTube
             </label>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap sm:flex-nowrap gap-2">
                 <input 
                     type="text" 
                     id="youtubeLink" 
@@ -65,19 +65,19 @@ const InputSection: React.FC<InputSectionProps> = ({ videoData, placeholders, on
                     value={videoData.youtubeLink} 
                     onChange={onInputChange} 
                     placeholder={placeholders.youtubeLink}
-                    className="flex-grow bg-brand-bg border border-brand-border rounded-md px-3 py-2 text-brand-text-primary focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition duration-200"
+                    className="flex-grow w-full sm:w-auto bg-brand-bg border border-brand-border rounded-md px-3 py-2 text-brand-text-primary focus:ring-2 focus:ring-brand-primary focus:border-brand-primary transition duration-200"
                 />
                  <button
                     disabled
                     title="Tính năng đang được phát triển"
-                    className="flex-shrink-0 bg-brand-secondary/80 hover:bg-brand-secondary disabled:bg-gray-600 disabled:cursor-not-allowed text-brand-bg/70 font-bold py-2 px-4 rounded-lg transition duration-200 text-sm flex items-center justify-center min-w-[140px]"
+                    className="flex-shrink-0 w-full sm:w-auto bg-brand-secondary/80 hover:bg-brand-secondary disabled:bg-gray-600 disabled:cursor-not-allowed text-brand-bg/70 font-bold py-2 px-4 rounded-lg transition duration-200 text-sm flex items-center justify-center"
                 >
                     Lấy Transcript
                  </button>
                 <button
                     onClick={onFetchMetadata}
                     disabled={isFetchingMeta || isFetchingTranscript}
-                    className="flex-shrink-0 bg-brand-primary hover:bg-brand-primary-hover disabled:bg-indigo-400 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm flex items-center justify-center min-w-[120px]"
+                    className="flex-shrink-0 w-full sm:w-auto bg-brand-primary hover:bg-brand-primary-hover disabled:bg-indigo-400 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm flex items-center justify-center"
                 >
                     {isFetchingMeta ? (
                        <>

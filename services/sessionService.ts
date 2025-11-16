@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 import type { Session, SeoSuggestion } from '../types';
 import type { User } from '@supabase/supabase-js';
@@ -145,5 +146,17 @@ export const deleteSession = async (sessionId: string, user: User | null): Promi
         let sessions = getLocalSessions();
         sessions = sessions.filter(s => s.id !== sessionId);
         saveLocalSessions(sessions);
+    }
+};
+
+export const deleteAllSessions = async (user: User | null): Promise<void> => {
+    if (user) {
+        const { error } = await supabase.from('sessions').delete().eq('user_id', user.id);
+        if (error) {
+            console.error('Error deleting all Supabase sessions:', error);
+            throw error;
+        }
+    } else {
+        saveLocalSessions([]);
     }
 };

@@ -9,9 +9,10 @@ interface LibraryModalProps {
   onClose: () => void;
   onLoadSession: (session: Session) => void;
   onDeleteSession: (sessionId: string) => void;
+  onDeleteAllSessions: () => void;
 }
 
-const LibraryModal: React.FC<LibraryModalProps> = ({ sessions, isOpen, onClose, onLoadSession, onDeleteSession }) => {
+const LibraryModal: React.FC<LibraryModalProps> = ({ sessions, isOpen, onClose, onLoadSession, onDeleteSession, onDeleteAllSessions }) => {
   if (!isOpen) return null;
 
   return (
@@ -54,9 +55,7 @@ const LibraryModal: React.FC<LibraryModalProps> = ({ sessions, isOpen, onClose, 
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm('Bạn có chắc muốn xóa phiên này?')) {
-                                onDeleteSession(session.id);
-                            }
+                            onDeleteSession(session.id);
                         }}
                         className="p-1.5 text-brand-text-secondary hover:text-brand-danger hover:bg-red-900/20 rounded-md"
                     >
@@ -68,7 +67,18 @@ const LibraryModal: React.FC<LibraryModalProps> = ({ sessions, isOpen, onClose, 
             </ul>
           )}
         </div>
-         <div className="flex justify-end p-4 bg-brand-bg rounded-b-lg border-t border-brand-border">
+         <div className="flex justify-between items-center p-4 bg-brand-bg rounded-b-lg border-t border-brand-border">
+            <button
+                onClick={() => {
+                    if (window.confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ thư viện không? Hành động này không thể hoàn tác.')) {
+                        onDeleteAllSessions();
+                    }
+                }}
+                disabled={sessions.length === 0}
+                className="px-4 py-2 text-sm font-medium text-brand-danger bg-transparent hover:bg-red-900/20 border border-brand-danger rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                Xóa hết
+            </button>
             <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-brand-text-primary bg-brand-surface hover:bg-gray-700 border border-brand-border rounded-md">Đóng</button>
         </div>
       </div>

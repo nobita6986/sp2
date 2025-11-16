@@ -400,6 +400,11 @@ const App: React.FC = () => {
       setSessions(userSessions);
   }
 
+  const handleDeleteAllSessions = async () => {
+    await sessionService.deleteAllSessions(user);
+    setSessions([]); // Optimistically clear the state
+  };
+
 
   return (
     <div className="bg-brand-bg min-h-screen text-brand-text-primary font-sans">
@@ -461,6 +466,7 @@ const App: React.FC = () => {
             onClose={() => setIsLibraryModalOpen(false)}
             onLoadSession={handleLoadSession}
             onDeleteSession={handleDeleteSession}
+            onDeleteAllSessions={handleDeleteAllSessions}
           />
       )}
       {isSuggestionsModalOpen && seoSuggestions && (

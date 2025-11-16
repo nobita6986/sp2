@@ -181,15 +181,21 @@ export const getSeoSuggestions = async (
 
     const prompt = `
     Act as an expert YouTube SEO strategist. Your task is to generate 5 distinct, highly optimized SEO packages for a YouTube video.
-    You will be given the original video data and a detailed SEO analysis report.
-    Your goal is to improve upon the weaknesses identified in the analysis and create compelling, clickable, and search-friendly metadata.
+    You will be given the original video data, a detailed SEO analysis report, and the EXACT SCORING SCHEMA used for the analysis.
+    Your goal is to create metadata packages that, if used, would achieve a score of 90/100 or higher according to the provided schema.
     All output must be in Vietnamese.
 
+    ---
+    CRITICAL SCORING SCHEMA (Your suggestions MUST follow these rules to maximize the score):
+    ${JSON.stringify(scoringSchema, null, 2)}
+    ---
+
     RULES:
-    1.  Generate EXACTLY 5 packages.
-    2.  Each package MUST include: title, description, tags (comma-separated string), thumbnail_text (text to put on the thumbnail), and thumbnail_prompt (a DALL-E/Midjourney style prompt to generate the thumbnail image).
-    3.  Base your suggestions on the provided analysis. If the analysis said the title was too long, make it shorter. If it lacked keywords, add them.
-    4.  The output MUST be a valid JSON array of objects, strictly adhering to the provided schema. Do not include any text before or after the JSON array.
+    1.  **Primary Goal:** Every suggestion package you create must be designed to score at least 90/100 based on the SCORING SCHEMA above. For example, if the schema says the optimal title length is 35–70 characters, your suggested titles must be within this range. Address all weaknesses from the analysis report.
+    2.  Generate EXACTLY 5 packages.
+    3.  Each package MUST include: title, description, tags (comma-separated string), thumbnail_text (text to put on the thumbnail), and thumbnail_prompt (a DALL-E/Midjourney style prompt to generate the thumbnail image).
+    4.  Base your suggestions on the weaknesses identified in the provided analysis report, using the scoring schema as your guide for improvement.
+    5.  The output MUST be a valid JSON array of objects, strictly adhering to the provided schema. Do not include any text before or after the JSON array.
 
     ---
     EXISTING VIDEO DATA:
@@ -199,13 +205,13 @@ export const getSeoSuggestions = async (
     - Transcript: ${videoData.transcript}
 
     ---
-    EXISTING SEO ANALYSIS REPORT:
+    EXISTING SEO ANALYSIS REPORT (This shows where the video is currently weak):
     - Overall Score: ${analysisResult.total_score.value}/${analysisResult.total_score.max}
     - Summary: ${analysisResult.total_score.summary}
     - Key Recommendations: ${analysisResult.recommendations.priority_order.join(', ')}
 
     ---
-    Now, generate the 5 SEO packages as a JSON array.
+    Now, generate the 5 SEO packages as a JSON array, ensuring each one would score above 90/100 based on the provided SCORING SCHEMA.
     `;
 
     const response = await ai.models.generateContent({
